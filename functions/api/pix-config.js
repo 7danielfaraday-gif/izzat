@@ -19,7 +19,7 @@ async function getConfig(env) {
   const fallback = {
     pix_code:
       '00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/EXEMPLO5204000053039865802BR5908SEU NOME6009SAO PAULO62070503***6304ABCD',
-    qrcode_url: 'assets/img/qrcode.webp',
+    qrcode_url: '/assets/img/qrcode.webp',
     updated_at: null,
   };
 

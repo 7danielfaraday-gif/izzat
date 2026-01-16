@@ -1,4 +1,9 @@
-document.addEventListener('DOMContentLoaded', setupKeyboardDetection);
+document.addEventListener('DOMContentLoaded', function(){
+    try {
+        if (typeof setupKeyboardDetection === 'function') setupKeyboardDetection();
+        else if (typeof window.setupKeyboardDetection === 'function') window.setupKeyboardDetection();
+    } catch(e) {}
+});
     
     window.initReactCheckout = function() {
         if (window.checkoutInitialized) return;
@@ -11,13 +16,13 @@ document.addEventListener('DOMContentLoaded', setupKeyboardDetection);
         const e = React.createElement; 
         
         const DEFAULT_CODIGO_PIX_COPIA_COLA = "00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984";
-        const DEFAULT_URL_IMAGEM_QRCODE = "assets/img/qrcode.webp"; // pode ser sobrescrito via painel (PHP)
+        const DEFAULT_URL_IMAGEM_QRCODE = "/assets/img/qrcode.webp"; // pode ser sobrescrito via painel (PHP)
         
         const PRODUCT_INFO = { 
             name: "Fritadeira Elétrica Forno Oven 12L Mondial AFON-12L-BI", 
             originalPrice: 399.90, 
             price: 197.99, 
-            image: "assets/img/01.webp", 
+            image: "/assets/img/01.webp", 
             id: "AFON-12L-BI" 
         };
 
@@ -26,7 +31,18 @@ document.addEventListener('DOMContentLoaded', setupKeyboardDetection);
         };
 
         const useInputMask = (type) => {
-            const mask = useMemo(() => window.createInputMask(type), [type]);
+            const mask = useMemo(() => {
+                try {
+                    if (window.createInputMask) return window.createInputMask(type);
+                } catch(e) {}
+                return {
+                    format: function(value, selectionStart){
+                        var v = value || '';
+                        var pos = (selectionStart === undefined || selectionStart === null) ? v.length : selectionStart;
+                        return { formatted: v, cursorPosition: pos };
+                    }
+                };
+            }, [type]);
             const inputRef = useRef(null);
             return { mask, inputRef };
         };
@@ -468,7 +484,17 @@ document.addEventListener('DOMContentLoaded', setupKeyboardDetection);
             const transactionId = activeData.transactionId || 'ERR_NO_ID';
 
             const effectivePixCode = (pixCode && String(pixCode).trim()) ? String(pixCode).trim() : DEFAULT_CODIGO_PIX_COPIA_COLA;
-            const effectiveQrUrl = (typeof qrCodeUrl === 'string' && qrCodeUrl.trim()) ? qrCodeUrl.trim() : DEFAULT_URL_IMAGEM_QRCODE;
+            let effectiveQrUrl = (typeof qrCodeUrl === 'string' && qrCodeUrl.trim()) ? qrCodeUrl.trim() : DEFAULT_URL_IMAGEM_QRCODE;
+
+            // Normaliza URLs relativas (ex: 'assets/img/qrcode.webp') para não quebrar em /checkout/
+            try {
+                if (effectiveQrUrl && typeof effectiveQrUrl === 'string') {
+                    const isHttp = /^https?:\/\//i.test(effectiveQrUrl);
+                    if (!isHttp && !effectiveQrUrl.startsWith('/')) {
+                        effectiveQrUrl = '/' + String(effectiveQrUrl).replace(/^\/+/, '');
+                    }
+                }
+            } catch(e) {}
 
             useEffect(() => {
                 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -505,7 +531,14 @@ document.addEventListener('DOMContentLoaded', setupKeyboardDetection);
                     setCopied(true);
                     trackEvent('ClickButton', { button_name: 'copy_pix_code', content_name: 'Cópia PIX' });
                 } catch (err) {
-                    fallbackCopy(effectivePixCode);
+                    let ok = false;
+                    try {
+                        if (typeof window.fallbackCopy === 'function') ok = window.fallbackCopy(effectivePixCode);
+                        else if (typeof fallbackCopy === 'function') ok = fallbackCopy(effectivePixCode);
+                    } catch(_) {}
+                    if (!ok) {
+                        try { window.prompt('Copie o código PIX abaixo:', effectivePixCode); } catch(_) {}
+                    }
                     setCopied(true);
                 }
                 setTimeout(() => setCopied(false), 2000); 

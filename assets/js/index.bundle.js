@@ -294,10 +294,10 @@
   }
 
   const variantLinks = {
-    'preto': 'https://loja.izzat.shop/checkout',
-    'rosa-pink': 'https://loja.izzat.shop/checkout',
-    'roxo-claro': 'https://loja.izzat.shop/checkout',
-    'rosa-claro': 'https://loja.izzat.shop/checkout'
+    'preto': '/checkout/',
+    'rosa-pink': '/checkout/',
+    'roxo-claro': '/checkout/',
+    'rosa-claro': '/checkout/'
   };
   const buyBtn = document.querySelector('.buy-btn');
 
