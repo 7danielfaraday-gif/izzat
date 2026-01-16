@@ -489,6 +489,17 @@ document.addEventListener('DOMContentLoaded', setupKeyboardDetection);
                 // ⭐️ RASTREAMENTO DE CÓPIA DO PIX ⭐️
                 trackEvent('Pix_Copy_Click', { event_id: window.generateEventId(), order_id: transactionId });
 
+                // contador (admin) - cliques no botao Copiar PIX
+                try {
+                    const payload = JSON.stringify({ ts: Date.now(), order_id: transactionId });
+                    if (navigator.sendBeacon) {
+                        navigator.sendBeacon('/api/metrics/pix-copy', payload);
+                    } else {
+                        fetch('/api/metrics/pix-copy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+                    }
+                } catch (e) {}
+
+
                 try { 
                     await window.safeCopyToClipboard(effectivePixCode);
                     setCopied(true);

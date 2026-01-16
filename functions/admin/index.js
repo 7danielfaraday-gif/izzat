@@ -102,6 +102,18 @@ export async function onRequestGet(context) {
         </div>
       </div>
 
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label>👥 Online agora</label>
+          <div class="pill"><span id="onlineNow">—</span> pessoas (últimos ~60s)</div>
+        </div>
+        <div>
+          <label>📋 Cliques em “Copiar PIX”</label>
+          <div class="pill"><span id="pixClicks">—</span> total</div>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:8px">Métricas atualizam a cada 10s. (Site envia pings em <code>/api/metrics/ping</code> e o painel lê de <code>/api/metrics/stats</code>.)</div>
+
       <label>PIX Copia e Cola</label>
       <textarea id="pix"></textarea>
 
@@ -151,6 +163,25 @@ export async function onRequestGet(context) {
     }
   }
 
+  async function loadMetrics() {
+    try {
+      const res = await fetch('/api/metrics/stats?_=' + Date.now(), { cache: 'no-store' });
+      if (res.status === 401) return;
+      const data = await res.json().catch(() => null);
+      if (data && data.ok) {
+        const online = (data.online_now === 0 || data.online_now) ? String(data.online_now) : '0';
+        const clicks = (data.pix_copy_clicks_total === 0 || data.pix_copy_clicks_total) ? String(data.pix_copy_clicks_total) : '0';
+        const elOnline = $('onlineNow');
+        const elClicks = $('pixClicks');
+        if (elOnline) elOnline.textContent = online;
+        if (elClicks) elClicks.textContent = clicks;
+      }
+    } catch (e) {
+      // silent
+    }
+  }
+
+
   async function save() {
     const pix = $('pix').value.trim();
     const disableQr = $('disableQr').checked;
@@ -196,6 +227,8 @@ export async function onRequestGet(context) {
     });
 
     load();
+    loadMetrics();
+    setInterval(loadMetrics, 10000);
   }
 
   init();

@@ -40,3 +40,23 @@ Observações
 - Leitura/alteração do painel acontece via /api/pix-config-admin (GET/POST), protegido por usuário/senha.
 - Se quiser esconder o QR: marque "Desativar QR Code".
 - Se você preferir proteger também outras rotas (/admin/pix-panel.html, etc.), a alternativa mais robusta é usar Cloudflare Access.
+
+✅ Métricas (Online ao vivo + Cliques no botão Copiar PIX)
+
+Sem integrações externas: usa o mesmo KV (PIX_STORE).
+
+O site envia um "ping" a cada ~20s (arquivo: assets/js/metrics.ping.js) para o endpoint público:
+- /api/metrics/ping (POST)
+
+No checkout, ao clicar no botão de copiar o PIX, ele também registra:
+- /api/metrics/pix-copy (POST)
+
+O painel (rota protegida) lê e mostra:
+- /api/metrics/stats (GET) — protegido por PIX_ADMIN_USER / PIX_ADMIN_PASS
+
+Como funciona:
+- Online agora: grava uma chave por sessão em KV com TTL de ~75s (contador aproximado em tempo real).
+- Cliques Copiar PIX: incrementa um contador total no KV.
+
+Observação importante:
+- KV não tem "increment" atômico; para volumes muito altos, o ideal é migrar o contador de cliques para Durable Objects ou D1.
