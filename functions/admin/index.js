@@ -127,7 +127,7 @@ export async function onRequestGet(context) {
   const $ = (id) => document.getElementById(id);
 
   function setStatus(html, ok=true) {
-    $('status').innerHTML = ok ? `<span class="ok">${html}</span>` : `<span class="err">${html}</span>`;
+    $('status').innerHTML = ok ? '<span class="ok">' + html + '</span>' : '<span class="err">' + html + '</span>';
   }
 
   async function load() {
