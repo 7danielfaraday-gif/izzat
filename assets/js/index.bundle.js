@@ -105,7 +105,7 @@
         };
     }
 
-    // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
+    // --- FUNÇÃO DE DISPARO (ZARAZ) ---
     function trackViaZaraz(event, data = {}, useBeacon = false) {
         try {
             // Tenta recuperar dados de usuário salvos (Sessão anterior persistente)
@@ -128,14 +128,7 @@
             if (savedEmail && !payload.email) payload.email = savedEmail;
             if (savedPhone && !payload.phone) payload.phone = savedPhone;
 
-            // 1. DISPARO MANUAL (Browser-Side)
-            if (window.ttq && typeof window.ttq.track === 'function') {
-                if (event !== 'PageView') {
-                    window.ttq.track(event, payload);
-                }
-            }
-
-            // 2. DISPARO ZARAZ (Server-Side)
+            // DISPARO ZARAZ (Server-Side)
             window.__zarazQueue = window.__zarazQueue || [];
             if (window.zaraz && window.zaraz.track) {
                 window.zaraz.track(event, payload);
