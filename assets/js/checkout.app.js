@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function(){
         const { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } = React;
         const e = React.createElement; 
         
-        const DEFAULT_CODIGO_PIX_COPIA_COLA = "00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047985";
+        const DEFAULT_CODIGO_PIX_COPIA_COLA = "00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984";
         const DEFAULT_URL_IMAGEM_QRCODE = "/assets/img/qrcode.webp"; // pode ser sobrescrito via painel (PHP)
         
         const PRODUCT_INFO = { 
@@ -327,6 +327,26 @@ document.addEventListener('DOMContentLoaded', function(){
                 }, 800);
             };
 
+            // ✅ FIX (iOS / WebView): em alguns navegadores embutidos (TikTok/Instagram/iOS),
+            // quando o teclado está aberto, o primeiro "tap" em um botão fixo pode apenas
+            // fechar o teclado e NÃO disparar o click. Capturamos no touchstart e disparamos
+            // o submit no próximo frame, com um pequeno lock anti-duplo disparo.
+            const mobileTapLockRef = useRef(false);
+            const handleMobileSubmitTap = (ev) => {
+                try { if (ev) { ev.preventDefault(); ev.stopPropagation(); } } catch(e) {}
+                if (mobileTapLockRef.current) return;
+                mobileTapLockRef.current = true;
+                setTimeout(() => { mobileTapLockRef.current = false; }, 650);
+
+                // força blur imediato para evitar o "primeiro tap" ser consumido pelo fechamento do teclado
+                try {
+                    const ae = document.activeElement;
+                    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) ae.blur();
+                } catch(e) {}
+
+                requestAnimationFrame(() => { try { handleSubmit(); } catch(e) {} });
+            };
+
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
 
@@ -463,10 +483,10 @@ document.addEventListener('DOMContentLoaded', function(){
                 ),
                 e("div", {className: "lg:hidden checkout-fixed-footer"},
                     e("button", { ref: mobileSubmitButtonRef, 
-                        onClick: (e) => { handleSubmit(e); }, 
+                        onTouchStart: handleMobileSubmitTap,
+                        onClick: handleMobileSubmitTap,
                         disabled: loading || isFormLocked || isSubmitting, 
                         type: "button", 
-                        form: "checkout-form",
                         className: `w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-xl shadow-green-500/30 ${loading || isFormLocked || isSubmitting ? 'opacity-80 grayscale cursor-not-allowed' : 'hover:shadow-green-500/50'} btn-tactile min-h-[56px]`, "aria-busy": loading }, 
                         loading ? e("span", {className: "flex items-center gap-2"}, e("div", { className: "spinner-mobile" }), "Processando...") : e("span", {className: "flex items-center gap-2"}, "FINALIZAR COM DESCONTO", e("svg", { className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3" }, e("polyline", {points: "9 18 15 12 9 6"})))
                     )
