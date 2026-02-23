@@ -289,7 +289,13 @@ document.addEventListener('DOMContentLoaded', function(){
                             const footerHeight = 100; 
                             const y = errorElement.getBoundingClientRect().top + window.scrollY - offset;
                             window.scrollTo({top: Math.max(0, y), behavior: 'smooth'});
-                            errorElement.focus({preventScroll: true}); 
+
+                            try {
+                                // iOS/WebView antigos podem não suportar focus({preventScroll:true})
+                                errorElement.focus({ preventScroll: true });
+                            } catch(e) {
+                                try { errorElement.focus(); } catch(_) {}
+                            }
                         });
                     }
                     setTimeout(() => {
@@ -347,6 +353,39 @@ document.addEventListener('DOMContentLoaded', function(){
                 requestAnimationFrame(() => { try { handleSubmit(); } catch(e) {} });
             };
 
+            // ✅ FIX (iOS / WebView): o mesmo problema do "primeiro tap" pode acontecer
+            // no botão de VOLTAR (header). Capturamos no touchstart e executamos no próximo frame.
+            const backTapLockRef = useRef(false);
+            const doBackNavigation = () => {
+                try {
+                    const ref = document.referrer || '';
+                    const sameOrigin = ref && ref.indexOf(window.location.origin) === 0;
+                    const external = /tiktok|instagram|facebook|fb\.|l\.facebook\.com|t\.co|twitter/i.test(ref);
+                    if (window.history.length > 1 && sameOrigin && !external) {
+                        window.history.back();
+                    } else {
+                        window.location.href = '/';
+                    }
+                } catch(e) { window.location.href = '/'; }
+            };
+
+            const handleBackTap = (ev) => {
+                try { if (ev) { ev.preventDefault(); ev.stopPropagation(); } } catch(e) {}
+                if (isFormLocked || isSubmitting) return;
+                if (backTapLockRef.current) return;
+                backTapLockRef.current = true;
+                setTimeout(() => { backTapLockRef.current = false; }, 650);
+
+                // fecha teclado para evitar o "tap consumido"
+                try {
+                    const ae = document.activeElement;
+                    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) ae.blur();
+                } catch(e) {}
+
+                requestAnimationFrame(() => { try { doBackNavigation(); } catch(e) {} });
+            };
+
+
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
 
@@ -359,22 +398,11 @@ document.addEventListener('DOMContentLoaded', function(){
                 e("div", { ref: progressRef, className: "progress-bar", style: {width: '10%'} }),
                 /* ⭐️ SEGURANÇA: Barra visual removida, lógica mantida internamente no componente */
                 e("div", { className: "static-nav bg-white/98 border-b border-gray-200 px-4 flex justify-between items-center z-30 shadow-[0_2px_8px_rgba(0,0,0,0.04)]" },
-                    e("button", { type: "button", onClick: () => {
-                        if (isFormLocked || isSubmitting) return;
-                        try {
-                            const ref = document.referrer || '';
-                            const sameOrigin = ref && ref.indexOf(window.location.origin) === 0;
-                            const external = /tiktok|instagram|facebook|fb\.|l\.facebook\.com|t\.co|twitter/i.test(ref);
-                            if (window.history.length > 1 && sameOrigin && !external) {
-                                window.history.back();
-                            } else {
-                                window.location.href = '/';
-                            }
-                        } catch(e) { window.location.href = '/'; }
-                    }, className: `flex items-center text-slate-400 hover:text-slate-600 transition-colors p-3 -ml-3 btn-tactile ${isFormLocked ? 'opacity-50 cursor-not-allowed' : ''}`, "aria-label": "Voltar", disabled: isFormLocked || isSubmitting }, 
+                    e("button", { type: "button", onTouchStart: handleBackTap,
+                        onClick: handleBackTap, className: `flex items-center text-slate-400 hover:text-slate-600 transition-colors p-3 -ml-3 btn-tactile ${isFormLocked ? 'opacity-50 cursor-not-allowed' : ''}`, "aria-label": "Voltar", disabled: isFormLocked || isSubmitting }, 
                         e("svg", { className: "w-6 h-6", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "15 18 9 12 15 6"}))
                     ),
-                    e("img", { src: "assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto object-contain", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/assets/img/logo.webp"; } } catch(e) {} } }),
+                    e("img", { src: "/assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto object-contain", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/assets/img/logo.webp"; } } catch(e) {} } }),
                     e("div", {className: "w-12"})
                 ),
                 e("div", { className: "max-w-[500px] lg:max-w-5xl mx-auto p-4 lg:px-8 pt-6 space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start" },
@@ -621,6 +649,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     setTimeout(() => {
                         skeleton.style.transition = 'opacity 0.3s ease-out';
                         skeleton.style.opacity = '0';
+                        try { skeleton.style.pointerEvents = 'none'; } catch(e) {}
                         setTimeout(() => { skeleton.style.display = 'none'; }, 300);
                     }, 100);
                 }
@@ -650,7 +679,41 @@ document.addEventListener('DOMContentLoaded', function(){
                 })();
             }, []);
 
-            
+
+            // ✅ Navegação (WebView / TikTok): cria histórico interno para o botão voltar do celular
+            // não fechar a página quando o usuário estiver na tela do PIX.
+            useEffect(() => {
+                try {
+                    const st = window.history.state || {};
+                    if (!st.__checkoutApp) {
+                        window.history.replaceState({ __checkoutApp: true, screen: 'checkout' }, document.title);
+                    }
+                } catch(e) {}
+
+                const onPop = (ev) => {
+                    try {
+                        const st = ev && ev.state ? ev.state : null;
+                        if (st && st.__checkoutApp) {
+                            setScreen(st.screen === 'pix' ? 'pix' : 'checkout');
+                        }
+                    } catch(e) {}
+                };
+
+                try { window.addEventListener('popstate', onPop); } catch(e) {}
+                return () => { try { window.removeEventListener('popstate', onPop); } catch(e) {} };
+            }, []);
+
+            useEffect(() => {
+                try {
+                    if (screen === 'pix') {
+                        const st = window.history.state || {};
+                        if (!(st && st.__checkoutApp && st.screen === 'pix')) {
+                            window.history.pushState({ __checkoutApp: true, screen: 'pix' }, document.title);
+                        }
+                    }
+                } catch(e) {}
+            }, [screen]);
+
             return screen === 'checkout' ? e(CheckoutScreen, { onSuccess: (data) => { setCustomerData(data); setScreen('pix'); } }) : e(PixScreen, { customerData: customerData, pixCode: pixConfig.pixCode, qrCodeUrl: pixConfig.qrCodeUrl });
         }
         
