@@ -68,7 +68,7 @@ O checkout agora envia (sem travar) um log resumido para o KV via endpoint públ
 - /api/checkout-log (POST)
 
 Você visualiza no painel protegido (mesmo usuário/senha do /admin):
-- /admin/checkout-log
+- /admin/checkout-log  (agora existe também como página estática em /admin/checkout-log/index.html, protegida por middleware)
 
 O painel lê os registros do KV via:
 - /api/checkout-log (GET) — protegido por PIX_ADMIN_USER / PIX_ADMIN_PASS
