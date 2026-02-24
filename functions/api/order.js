@@ -1,13 +1,12 @@
 // Cloudflare Pages Function: POST /api/order
-// Recebe os dados do checkout e envia um e-mail de notificação com o pedido.
-// Envio via MailChannels (sem API key) — funciona em Workers/Pages.
+// Public endpoint to register checkout info as an "order" in KV.
+// Storage: KV (binding name: PIX_STORE)  (re-uses your existing KV binding)
 //
-// ✅ Secrets (Pages > Settings > Environment variables):
-// - ORDER_NOTIFY_TO (OBRIGATÓRIO): e-mail que recebe os pedidos
-// - ORDER_NOTIFY_FROM (OPCIONAL): remetente (recomendado ser do seu domínio)
-//
-// ✅ DNS (recomendado para não cair no spam):
-// TXT no @: v=spf1 include:mailchannels.net -all
+// Notes:
+// - This DOES NOT confirm payment. It only stores the customer's info so you can fulfill manually.
+// - Keep PII handling in mind. This stores what the frontend sends.
+
+const PREFIX = 'order_v1:';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -19,124 +18,107 @@ function json(data, status = 200) {
   });
 }
 
-function safeStr(v) {
-  return typeof v === 'string' ? v.trim() : '';
+function badRequest(msg) {
+  return json({ ok: false, error: msg || 'bad_request' }, 400);
 }
 
-function buildFromEmail(env, requestUrl) {
-  const fromEnv = safeStr(env.ORDER_NOTIFY_FROM);
-  if (fromEnv) return fromEnv;
-  try {
-    const u = new URL(requestUrl);
-    const host = (u.hostname || 'example.com').replace(/^www\./i, '');
-    return `pedidos@${host}`;
-  } catch (_) {
-    return 'pedidos@example.com';
-  }
+function getClientIP(request) {
+  return (
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-forwarded-for') ||
+    ''
+  );
 }
 
-function formatOrderText(payload) {
-  const lines = [];
-  lines.push('NOVO PEDIDO (PIX PENDENTE)');
-  lines.push('');
-  lines.push(`Order ID: ${safeStr(payload.order_id)}`);
-  lines.push(`Data/Hora (UTC): ${new Date().toISOString()}`);
-  lines.push('');
-
-  lines.push('CLIENTE');
-  lines.push(`Nome: ${safeStr(payload.name)}`);
-  lines.push(`E-mail: ${safeStr(payload.email)}`);
-  lines.push(`Telefone: ${safeStr(payload.phone)}`);
-  if (safeStr(payload.cpf)) lines.push(`CPF: ${safeStr(payload.cpf)}`);
-  lines.push('');
-
-  lines.push('ENDEREÇO');
-  lines.push(`CEP: ${safeStr(payload.cep)}`);
-  lines.push(`Rua: ${safeStr(payload.address)}`);
-  lines.push(`Número: ${safeStr(payload.number)}`);
-  lines.push(`Cidade/UF: ${safeStr(payload.city)}${safeStr(payload.state) ? '/' + safeStr(payload.state) : ''}`);
-  lines.push('');
-
-  const p = payload.product || {};
-  if (p && typeof p === 'object') {
-    lines.push('PRODUTO');
-    if (safeStr(p.id)) lines.push(`SKU/ID: ${safeStr(p.id)}`);
-    if (safeStr(p.name)) lines.push(`Nome: ${safeStr(p.name)}`);
-    if (safeStr(p.price)) lines.push(`Preço: ${safeStr(p.price)}`);
-    lines.push('');
-  }
-
-  const utms = payload.utms || {};
-  if (utms && typeof utms === 'object' && Object.keys(utms).length) {
-    lines.push('UTMS');
-    for (const k of Object.keys(utms)) {
-      const v = utms[k];
-      const vv = typeof v === 'string' ? v : (v == null ? '' : String(v));
-      if (vv) lines.push(`${k}: ${vv}`);
-    }
-    lines.push('');
-  }
-
-  if (safeStr(payload.page)) {
-    lines.push(`Página: ${safeStr(payload.page)}`);
-    lines.push('');
-  }
-  return lines.join('\n');
+function safeString(v, maxLen = 500) {
+  if (v === null || v === undefined) return '';
+  let s = String(v);
+  if (s.length > maxLen) s = s.slice(0, maxLen);
+  return s;
 }
 
-async function sendMail({ to, fromEmail, fromName, subject, text, replyTo }) {
-  const body = {
-    personalizations: [{ to: [{ email: to }] }],
-    from: { email: fromEmail, name: fromName },
-    subject,
-    content: [{ type: 'text/plain', value: text }],
+function normalizeOrderPayload(body) {
+  // Accept any shape, but normalize common fields
+  const out = {
+    created_at: new Date().toISOString(),
+    source: 'checkout',
+    customer: {
+      name: safeString(body?.name || body?.nome),
+      phone: safeString(body?.phone || body?.telefone || body?.whatsapp),
+      email: safeString(body?.email),
+      cpf: safeString(body?.cpf),
+    },
+    shipping: {
+      cep: safeString(body?.cep),
+      address: safeString(body?.address || body?.endereco),
+      number: safeString(body?.number || body?.numero),
+      complement: safeString(body?.complement || body?.complemento),
+      neighborhood: safeString(body?.neighborhood || body?.bairro),
+      city: safeString(body?.city || body?.cidade),
+      state: safeString(body?.state || body?.uf),
+    },
+    product: {
+      id: safeString(body?.product_id || body?.productId || body?.sku),
+      name: safeString(body?.product_name || body?.productName),
+      variant: safeString(body?.variant),
+      qty: body?.qty ?? body?.quantity ?? 1,
+      price: body?.price ?? body?.value ?? null,
+      currency: safeString(body?.currency || 'BRL', 8),
+    },
+    utm: {
+      utm_source: safeString(body?.utm_source),
+      utm_medium: safeString(body?.utm_medium),
+      utm_campaign: safeString(body?.utm_campaign),
+      utm_content: safeString(body?.utm_content),
+      utm_term: safeString(body?.utm_term),
+    },
+    meta: {
+      page: safeString(body?.page || body?.url),
+      user_agent: safeString(body?.user_agent),
+      ip: safeString(body?.ip),
+      referrer: safeString(body?.referrer),
+    },
+    raw: body, // keep original
   };
-  if (replyTo) body.reply_to = { email: replyTo };
 
-  const resp = await fetch('https://api.mailchannels.net/tx/v1/send', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => '');
-    throw new Error(`mail_failed_${resp.status}${t ? '_' + t.slice(0, 200) : ''}`);
-  }
+  // remove empty customer/shipping fields if all blank (optional)
+  return out;
 }
 
 export async function onRequestPost(context) {
-  try {
-    const { request, env } = context;
-    const to = safeStr(env.ORDER_NOTIFY_TO);
-    if (!to) return json({ ok: false, error: 'missing_ORDER_NOTIFY_TO' }, 500);
+  const { request, env } = context;
 
-    const ct = request.headers.get('content-type') || '';
-    if (!ct.toLowerCase().includes('application/json')) {
-      return json({ ok: false, error: 'content_type_must_be_json' }, 415);
-    }
-
-    const payload = await request.json().catch(() => null);
-    if (!payload || typeof payload !== 'object') {
-      return json({ ok: false, error: 'invalid_json' }, 400);
-    }
-
-    const orderId = safeStr(payload.order_id);
-    if (!orderId) return json({ ok: false, error: 'missing_order_id' }, 400);
-
-    const fromEmail = buildFromEmail(env, request.url);
-    const fromName = 'Pedidos Izzat';
-    const subject = `Novo pedido (PIX pendente) — ${orderId}`;
-    const text = formatOrderText(payload);
-    const replyTo = safeStr(payload.email) || null;
-
-    await sendMail({ to, fromEmail, fromName, subject, text, replyTo });
-    return json({ ok: true });
-  } catch (e) {
-    return json({ ok: false, error: 'server_error' }, 500);
+  if (!env.PIX_STORE) {
+    return json({ ok: false, error: 'PIX_STORE_KV_NOT_BOUND' }, 500);
   }
-}
 
-export async function onRequestGet() {
-  return json({ ok: false, error: 'method_not_allowed' }, 405);
+  let body;
+  const ct = request.headers.get('content-type') || '';
+  try {
+    if (ct.includes('application/json')) {
+      body = await request.json();
+    } else if (ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data')) {
+      const form = await request.formData();
+      body = Object.fromEntries(form.entries());
+    } else {
+      // try json anyway
+      body = await request.json();
+    }
+  } catch (e) {
+    return badRequest('INVALID_BODY');
+  }
+
+  const order = normalizeOrderPayload(body);
+  order.meta.ip = order.meta.ip || getClientIP(request);
+  order.meta.user_agent = order.meta.user_agent || (request.headers.get('user-agent') || '');
+  order.meta.referrer = order.meta.referrer || (request.headers.get('referer') || '');
+
+  const ts = Date.now();
+  const rand = Math.random().toString(16).slice(2, 10);
+  const key = `${PREFIX}${ts}:${rand}`;
+
+  // keep 90 days (adjust if you want)
+  await env.PIX_STORE.put(key, JSON.stringify(order), { expirationTtl: 60 * 60 * 24 * 90 });
+
+  return json({ ok: true, key, created_at: order.created_at });
 }

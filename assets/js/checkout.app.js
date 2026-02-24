@@ -30,63 +30,6 @@ document.addEventListener('DOMContentLoaded', function(){
             if (window.trackPixel) window.trackPixel(event, data); 
         };
 
-        // ✅ Envia os dados do pedido para o servidor (/api/order) para você receber por e-mail.
-        // Usa sendBeacon quando disponível (melhor em WebView do TikTok/Instagram).
-        const notifyOrder = (data) => {
-            try {
-                if (!data || typeof data !== 'object') return;
-                const orderId = data.transactionId || data.order_id || '';
-                if (!orderId) return;
-
-                // evita duplicar em refresh/voltar
-                try {
-                    const key = 'order_notified_' + orderId;
-                    if (localStorage.getItem(key) === '1') return;
-                    localStorage.setItem(key, '1');
-                } catch(e) {}
-
-                const utms = (typeof window.getStoredUTMs === 'function') ? window.getStoredUTMs() : {};
-                const payload = {
-                    order_id: orderId,
-                    name: data.name || '',
-                    email: data.email || '',
-                    phone: data.phone || '',
-                    cpf: data.cpf || '',
-                    cep: data.cep || '',
-                    address: data.address || '',
-                    number: data.number || '',
-                    city: data.city || '',
-                    state: data.state || '',
-                    page: (window.location && (window.location.pathname + window.location.search)) || '',
-                    product: {
-                        id: PRODUCT_INFO.id,
-                        name: PRODUCT_INFO.name,
-                        price: (PRODUCT_INFO.price != null) ? String(PRODUCT_INFO.price) : '',
-                    },
-                    utms: utms
-                };
-
-                const body = JSON.stringify(payload);
-                if (navigator && navigator.sendBeacon) {
-                    try {
-                        const blob = new Blob([body], { type: 'application/json' });
-                        navigator.sendBeacon('/api/order', blob);
-                        return;
-                    } catch(e) {}
-                }
-
-                // fallback
-                try {
-                    fetch('/api/order', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: body,
-                        keepalive: true,
-                    }).catch(() => {});
-                } catch(e) {}
-            } catch(e) {}
-        };
-
         const useInputMask = (type) => {
             const mask = useMemo(() => {
                 try {
@@ -385,6 +328,19 @@ document.addEventListener('DOMContentLoaded', function(){
                 const uniqueOrderId = 'ord_' + new Date().getTime(); 
                 trackEvent('AddPaymentInfo', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId(), order_id: uniqueOrderId });
                 
+                try {
+                    const u = new URL(location.href);
+                    const payload = { ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId,
+                        utm_source: u.searchParams.get('utm_source') || '',
+                        utm_medium: u.searchParams.get('utm_medium') || '',
+                        utm_campaign: u.searchParams.get('utm_campaign') || '',
+                        utm_content: u.searchParams.get('utm_content') || '',
+                        utm_term: u.searchParams.get('utm_term') || '',
+                        page: location.href
+                    };
+                    fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+                } catch(e) {} 
+
                 setTimeout(() => { 
                     onSuccess({ ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId }); 
                 }, 800);
@@ -771,12 +727,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 } catch(e) {}
             }, [screen]);
 
-            return screen === 'checkout' ? e(CheckoutScreen, { onSuccess: (data) => { 
-                setCustomerData(data);
-                // dispara notificação pro seu e-mail
-                try { notifyOrder(data); } catch(e) {}
-                setScreen('pix'); 
-            } }) : e(PixScreen, { customerData: customerData, pixCode: pixConfig.pixCode, qrCodeUrl: pixConfig.qrCodeUrl });
+            return screen === 'checkout' ? e(CheckoutScreen, { onSuccess: (data) => { setCustomerData(data); setScreen('pix'); } }) : e(PixScreen, { customerData: customerData, pixCode: pixConfig.pixCode, qrCodeUrl: pixConfig.qrCodeUrl });
         }
         
         const rootElement = document.getElementById('checkout-root');
