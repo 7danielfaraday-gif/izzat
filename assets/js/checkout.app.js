@@ -328,19 +328,6 @@ document.addEventListener('DOMContentLoaded', function(){
                 const uniqueOrderId = 'ord_' + new Date().getTime(); 
                 trackEvent('AddPaymentInfo', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId(), order_id: uniqueOrderId });
                 
-                try {
-                    const u = new URL(location.href);
-                    const payload = { ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId,
-                        utm_source: u.searchParams.get('utm_source') || '',
-                        utm_medium: u.searchParams.get('utm_medium') || '',
-                        utm_campaign: u.searchParams.get('utm_campaign') || '',
-                        utm_content: u.searchParams.get('utm_content') || '',
-                        utm_term: u.searchParams.get('utm_term') || '',
-                        page: location.href
-                    };
-                    fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
-                } catch(e) {} 
-
                 setTimeout(() => { 
                     onSuccess({ ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId }); 
                 }, 800);
