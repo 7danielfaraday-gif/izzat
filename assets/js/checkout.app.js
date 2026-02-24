@@ -30,6 +30,26 @@ document.addEventListener('DOMContentLoaded', function(){
             if (window.trackPixel) window.trackPixel(event, data); 
         };
 
+        // 📋 Log opcional de dados capturados no checkout (Cloudflare KV)
+        // Endpoint: /api/checkout-log (POST público). Não bloqueia o fluxo do checkout.
+        const sendCheckoutLog = (payload) => {
+            try {
+                const body = JSON.stringify(payload || {});
+                if (navigator && typeof navigator.sendBeacon === 'function') {
+                    const blob = new Blob([body], { type: 'application/json' });
+                    navigator.sendBeacon('/api/checkout-log', blob);
+                } else if (typeof fetch === 'function') {
+                    fetch('/api/checkout-log', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body,
+                        keepalive: true
+                    }).catch(() => {});
+                }
+            } catch(e) {}
+        };
+
+
         const useInputMask = (type) => {
             const mask = useMemo(() => {
                 try {
@@ -327,6 +347,33 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
                 const uniqueOrderId = 'ord_' + new Date().getTime(); 
                 trackEvent('AddPaymentInfo', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId(), order_id: uniqueOrderId });
+
+                // 📋 Salva uma "captura" do checkout no KV (não impacta conversão)
+                try {
+                    const sp = new URLSearchParams(window.location.search || '');
+                    const utm = {
+                        utm_source: sp.get('utm_source') || undefined,
+                        utm_medium: sp.get('utm_medium') || undefined,
+                        utm_campaign: sp.get('utm_campaign') || undefined,
+                        utm_content: sp.get('utm_content') || undefined,
+                        utm_term: sp.get('utm_term') || undefined
+                    };
+                    sendCheckoutLog({
+                        event: 'checkout_submit',
+                        ts_client: Date.now(),
+                        order_id: uniqueOrderId,
+                        name: (formData.name || '').trim(),
+                        email: finalEmail,
+                        phone: finalPhone,
+                        city: city || undefined,
+                        state: state || undefined,
+                        product: window.PRODUCT_CONTENT || undefined,
+                        path: window.location.pathname,
+                        href: window.location.href,
+                        referrer: document.referrer || undefined,
+                        utm
+                    });
+                } catch(e) {}
                 
                 setTimeout(() => { 
                     onSuccess({ ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId }); 
