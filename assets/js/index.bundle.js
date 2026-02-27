@@ -53,13 +53,11 @@
                 sessionStorage.setItem('user_external_id', eid);
             }
             return eid;
-        } catch {
+        } catch (e) {
             return 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
         }
     }
 
-        return eid;
-    }
 
     function getTTCLID() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -102,19 +100,6 @@ function getStoredUTMs() {
             timestamp: Math.floor(Date.now() / 1000)
         };
     }
-
-        
-        return {
-            user_agent: navigator.userAgent,
-            language: navigator.language,
-            url: window.location.origin + window.location.pathname,
-            referrer: (document.referrer ? document.referrer.split('?')[0] : ''),
-            timestamp: Math.floor(Date.now() / 1000),
-            screen_resolution: window.screen.width + 'x' + window.screen.height,
-            connection_type: connection
-        };
-    }
-
     // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
     function trackViaZaraz(event, data = {}, useBeacon = false) {
         try {
@@ -376,13 +361,23 @@ function getStoredUTMs() {
     const viewReviewsBtn = document.querySelector('.add-cart-btn');
     const reviewsSection = document.querySelector('.reviews-section');
     
-    // CORREÇÃO: Remover loader ao carregar imagem
+    // CORREÇÃO: Remover loader ao carregar imagem (inclusive se já tiver carregado antes do JS)
     if (mainImage) {
-        mainImage.onload = function() {
+        const hideLoader = () => {
             const loader = document.getElementById('image-loading');
-            if(loader) loader.style.display = 'none';
+            if (loader) loader.style.display = 'none';
+        };
+        try {
+            mainImage.addEventListener('load', hideLoader, { passive: true });
+        } catch (e) {
+            mainImage.onload = hideLoader;
+        }
+        if (mainImage.complete) {
+            // Se a imagem já carregou antes do handler ser registrado
+            hideLoader();
         }
     }
+
 
     // FIX INP: Otimização do botão "Ver Avaliações"
     // ⭐️ NOVO: Rastreamento de Micro-Conversão (Click em Avaliações)
@@ -582,4 +577,3 @@ function getStoredUTMs() {
     }, 3000);
     
   });
-
