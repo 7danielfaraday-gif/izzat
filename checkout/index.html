@@ -288,24 +288,25 @@
                     event_time: Math.floor(Date.now() / 1000)
                 });
 
-                // ✅ Evita diagnósticos de deduplicação (não duplica o mesmo evento em Browser+Server)
-                // - eventos de FUNIL (ViewContent/InitiateCheckout/etc): Browser Pixel
-                // - evento de CONVERSÃO (CompletePayment/Purchase): Server (Zaraz -> Events API)
-                var SERVER_ONLY = { 'CompletePayment': 1, 'Purchase': 1 };
-                var useServer = !!SERVER_ONLY[event];
-                var useBrowser = !useServer;
+                // ✅ Redundância híbrida: dispara SEMPRE em Browser (Pixel) e Server (Zaraz)
+                // ✅ Deduplicação: o mesmo event_id vai nos 2 canais (definido acima)
 
-                if (useBrowser && window.ttq && typeof window.ttq.track === 'function') {
+                // Browser Pixel (ttq possui stub/queue mesmo antes do SDK carregar)
+                if (window.ttq && typeof window.ttq.track === 'function') {
                     try { window.ttq.track(event, payload); } catch(e) {}
                 }
 
-                if (useServer) {
-                    window.trackingQueue = window.trackingQueue || [];
-                    if (window.zaraz && window.zaraz.track) {
-                        try { window.zaraz.track(event, payload); } catch(e) {}
-                    } else {
+                // Server (Zaraz) — mantém fila para eventos antes do Zaraz carregar
+                window.trackingQueue = window.trackingQueue || [];
+                if (window.zaraz && typeof window.zaraz.track === 'function') {
+                    try {
+                        window.zaraz.track(event, payload);
+                    } catch(e) {
+                        // Se Zaraz falhar, mantém o evento para retry
                         window.trackingQueue.push({ event: event, data: payload });
                     }
+                } else {
+                    window.trackingQueue.push({ event: event, data: payload });
                 }
 
                 // GA fallback (opcional) — payload já está sanitizado
