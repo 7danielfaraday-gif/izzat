@@ -77,7 +77,10 @@
         });
     }
 
-    function getStoredUTMs() {
+    
+// Compliance hardening: remove legacy hashed identifiers from previous versions
+try { localStorage.removeItem('user_hashed_email'); localStorage.removeItem('user_hashed_phone'); } catch(e) {}
+function getStoredUTMs() {
         const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
         let utms = {};
         utmKeys.forEach(key => {
@@ -97,8 +100,8 @@
         return {
             user_agent: navigator.userAgent,
             language: navigator.language,
-            url: window.location.href,
-            referrer: document.referrer,
+            url: window.location.origin + window.location.pathname,
+            referrer: (document.referrer ? document.referrer.split('?')[0] : ''),
             timestamp: Math.floor(Date.now() / 1000),
             screen_resolution: window.screen.width + 'x' + window.screen.height,
             connection_type: connection
@@ -108,9 +111,6 @@
     // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
     function trackViaZaraz(event, data = {}, useBeacon = false) {
         try {
-            // Tenta recuperar dados de usuário salvos (Sessão anterior persistente)
-            const savedEmail = localStorage.getItem('user_hashed_email');
-            const savedPhone = localStorage.getItem('user_hashed_phone');
 
             let payload = { 
                 ...data, 
@@ -122,11 +122,9 @@
 
             // Campos compatíveis com Events API (ajuda em matching/atribuição)
             payload.event_time = payload.timestamp || Math.floor(Date.now() / 1000);
-            payload.event_source_url = payload.url || window.location.href;
+            payload.event_source_url = window.location.origin + window.location.pathname;
 
             // Injeta identificadores recuperados se existirem
-            if (savedEmail && !payload.email) payload.email = savedEmail;
-            if (savedPhone && !payload.phone) payload.phone = savedPhone;
 
             // 1. DISPARO MANUAL (Browser-Side)
             if (window.ttq && typeof window.ttq.track === 'function') {
