@@ -259,7 +259,7 @@ useLayoutEffect(() => {
                             setCepFailed(true);
                         } else { 
                             setFormData(prev => ({ ...prev, address: data.logradouro || '', city: `${data.localidade || ''}/${data.uf || ''}`.replace(/^\//,'') })); 
-                            setTimeout(() => { try { if(numberRef.current) numberRef.current.focus(); } catch(e){} }, 300);
+                            setTimeout(() => { try { const isCoarse = window.matchMedia && window.matchMedia('(pointer:coarse)').matches; if(!isCoarse && numberRef.current) numberRef.current.focus(); } catch(e){} }, 300);
                         }
                     } catch(e) {
                         // Falha comum em in-app / conexão fraca: libera preenchimento manual
