@@ -152,18 +152,18 @@
     const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.search.includes('debug_tracking');
     if (DEBUG_MODE) { window.trackingDebug = true; }
 
-    function getExternalId() { 
-        const urlParams = new URLSearchParams(window.location.search);
-        let eid = urlParams.get('eid');
-        if (eid) { 
-            try { localStorage.setItem('user_external_id', eid); } catch(e) {}
-            return eid; 
+    function getExternalId() {
+        // Compliance: session-only identifier (não persistente)
+        try {
+            let eid = sessionStorage.getItem('user_external_id');
+            if (!eid) {
+                eid = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+                sessionStorage.setItem('user_external_id', eid);
+            }
+            return eid;
+        } catch(e) {
+            return 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
         }
-        try { eid = localStorage.getItem('user_external_id'); } catch(e) {}
-        if (eid) return eid;
-        eid = 'user_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now(); 
-        try { localStorage.setItem('user_external_id', eid); } catch(e) {}
-        return eid;
     }
     window.getExternalId = getExternalId;
 
@@ -244,7 +244,6 @@
                 }
 
                 var payload = Object.assign({}, finalData, {
-                    external_id: window.getExternalId(),
                     ttclid: window.getTTCLID(),
                     ...window.getStoredUTMs(),
                     event_source_url: window.location.origin + window.location.pathname,

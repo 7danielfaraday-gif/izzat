@@ -188,24 +188,6 @@ export async function onRequestPost(context) {
 }
 
 export async function onRequestGet(context) {
-  try {
-    if (!checkBasicAuth(context.request, context.env)) return unauthorized();
-
-    const url = new URL(context.request.url);
-    const limitRaw = url.searchParams.get('limit') || '80';
-    const limitNum = parseInt(limitRaw, 10);
-    const limit = Number.isFinite(limitNum) ? Math.min(Math.max(limitNum, 1), 200) : 80;
-
-    const names = await listKeys(context.env, limit);
-    const items = await getMany(context.env, names);
-
-    return json({
-      ok: true,
-      count: items.length,
-      items,
-      updated_at: new Date().toISOString(),
-    });
-  } catch {
-    return json({ ok: false, error: 'server_error' }, 500);
-  }
+  // Storefront project: GET is disabled (admin lives on a separate subdomain/project).
+  return new Response('Not Found', { status: 404, headers: { 'cache-control': 'no-store, max-age=0' } });
 }

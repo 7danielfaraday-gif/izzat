@@ -45,14 +45,19 @@
     }
 
     function getExternalId() {
-        let eid = localStorage.getItem('user_external_id');
-        if (!eid) eid = getCookie('user_external_id'); 
-        
-        if (!eid) {
-            eid = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-            localStorage.setItem('user_external_id', eid);
-            setCookie('user_external_id', eid, 365); 
+        // Compliance: session-only identifier (não persistente)
+        try {
+            let eid = sessionStorage.getItem('user_external_id');
+            if (!eid) {
+                eid = 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                sessionStorage.setItem('user_external_id', eid);
+            }
+            return eid;
+        } catch {
+            return 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
         }
+    }
+
         return eid;
     }
 
@@ -79,7 +84,7 @@
 
     
 // Compliance hardening: remove legacy hashed identifiers from previous versions
-try { localStorage.removeItem('user_hashed_email'); localStorage.removeItem('user_hashed_phone'); } catch(e) {}
+try { localStorage.removeItem('user_hashed_email'); localStorage.removeItem('user_hashed_phone'); localStorage.removeItem('user_external_id'); } catch(e) {}
 function getStoredUTMs() {
         const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
         let utms = {};
@@ -90,12 +95,14 @@ function getStoredUTMs() {
         return utms;
     }
 
-    // Contexto Avançado (Fingerprinting Lite)
+    // Contexto básico (minimização de dados)
     function getContext() {
-        let connection = 'unknown';
-        if (navigator.connection) {
-            connection = navigator.connection.effectiveType; // '4g', '3g', etc.
-        }
+        return {
+            url: window.location.origin + window.location.pathname,
+            timestamp: Math.floor(Date.now() / 1000)
+        };
+    }
+
         
         return {
             user_agent: navigator.userAgent,
@@ -115,7 +122,6 @@ function getStoredUTMs() {
             let payload = { 
                 ...data, 
                 ...getContext(),
-                external_id: getExternalId(),
                 ttclid: getTTCLID(),
                 ...getStoredUTMs()
             };
