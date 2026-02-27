@@ -86,14 +86,7 @@ document.addEventListener('DOMContentLoaded', function(){
             const [loading, setLoading] = useState(false);
             const [loadingCep, setLoadingCep] = useState(false);
             const [cepFailed, setCepFailed] = useState(false);
-            const [formData, setFormData] = useState(() => { 
-                try { 
-                    const saved = localStorage.getItem('checkout_safe_data'); 
-                    return saved ? JSON.parse(saved) : { name: '', email: '', phone: '', cpf: '', cep: '', address: '', number: '', city: '' }; 
-                } catch(e) { 
-                    return { name: '', email: '', phone: '', cpf: '', cep: '', address: '', number: '', city: '' }; 
-                } 
-            });
+            const [formData, setFormData] = useState({ name: '', email: '', phone: '', cpf: '', cep: '', address: '', number: '', city: '' }); // sem persistência localStorage (modo compliance)
             
             // ⭐️ SEGURANÇA: Lógica de tempo mantida para evitar ReferenceError (Crash)
             const [timeLeft, setTimeLeft] = useState(15 * 60);
@@ -113,10 +106,7 @@ document.addEventListener('DOMContentLoaded', function(){
             const { mask: cpfMask, inputRef: cpfInputRef } = useInputMask('cpf');
             const { mask: cepMask, inputRef: cepInputRef } = useInputMask('cep');
             const fetchingCepRef = useRef(false);
-
-            useEffect(() => { try { localStorage.setItem('checkout_safe_data', JSON.stringify(formData)); } catch(e){} }, [formData]);
-
-            useLayoutEffect(() => {
+useLayoutEffect(() => {
                 if (!cursorRef.current) return;
                 const { ref, pos } = cursorRef.current;
                 if (ref && ref.current) {
@@ -140,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 const icId = window.generateEventId ? window.generateEventId() : 'evt_'+Date.now(); 
                 trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: icId }); 
                 
-                const analyticsTimer = setTimeout(() => { if (window.loadAnalytics) window.loadAnalytics(); }, 3500);
+                const analyticsTimer = null; // GA desativado (modo compliance)
                 const timerInterval = setInterval(() => { setTimeLeft(prev => prev > 0 ? prev - 1 : 0); }, 1000);
 
                 return () => { clearTimeout(analyticsTimer); clearInterval(timerInterval); }
