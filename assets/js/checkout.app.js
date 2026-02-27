@@ -30,6 +30,22 @@ document.addEventListener('DOMContentLoaded', function(){
             if (window.trackPixel) window.trackPixel(event, data); 
         };
 
+        // 🔐 Hashing nativo (SHA-256) para enviar apenas identificadores criptografados
+        // - Não bloqueia o carregamento inicial (só roda quando chamado)
+        // - Normaliza (trim + lowercase) antes do hash
+        const hashData = async (text) => {
+            try {
+                if (!text) return null;
+                if (!window.crypto || !window.crypto.subtle || typeof window.crypto.subtle.digest !== 'function') return null;
+                if (typeof TextEncoder === 'undefined') return null;
+                const msgUint8 = new TextEncoder().encode(String(text).trim().toLowerCase());
+                const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
+                return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            } catch (e) {
+                return null;
+            }
+        };
+
         // 📋 Log opcional de dados capturados no checkout (Cloudflare KV)
         // Endpoint: /api/checkout-log (POST público). Não bloqueia o fluxo do checkout.
         const sendCheckoutLog = (payload) => {
@@ -101,6 +117,12 @@ document.addEventListener('DOMContentLoaded', function(){
             const hasTrackedStartRef = useRef(false);
             const submitButtonRef = useRef(null);
             const mobileSubmitButtonRef = useRef(null);
+
+            // refs para evitar re-bind de listeners (Android low-end)
+            const unloadGuardRef = useRef({ loading: false, isFormLocked: false, isSubmitting: false });
+            unloadGuardRef.current.loading = loading;
+            unloadGuardRef.current.isFormLocked = isFormLocked;
+            unloadGuardRef.current.isSubmitting = isSubmitting;
             
             const { mask: phoneMask, inputRef: phoneInputRef } = useInputMask('phone');
             const { mask: cpfMask, inputRef: cpfInputRef } = useInputMask('cpf');
@@ -121,6 +143,7 @@ useLayoutEffect(() => {
                 cursorRef.current = null;
             }); 
 
+            // ✅ ÚNICO hook de runtime: init do funil + timer + guard de navegação
             useEffect(() => { 
                 try { 
                     window.scrollTo(0, 0); 
@@ -133,30 +156,38 @@ useLayoutEffect(() => {
                 const analyticsTimer = null; // GA desativado (modo compliance)
                 const timerInterval = setInterval(() => { setTimeLeft(prev => prev > 0 ? prev - 1 : 0); }, 1000);
 
-                return () => { clearTimeout(analyticsTimer); clearInterval(timerInterval); }
-            }, []);
-
-            useEffect(() => { 
-                const totalFields = 5; 
-                const filledFields = Object.keys(formData).filter(key => ['name', 'email', 'phone', 'cpf', 'address', 'number'].includes(key) && formData[key]).length;
-                const progress = Math.min((filledFields / totalFields) * 100, 100);
-                if (progressRef.current) progressRef.current.style.width = `${progress}%`; 
-            }, [formData]);
-
-            useEffect(() => {
                 const handleBeforeUnload = (e) => { 
-                    if (loading || isFormLocked || isSubmitting) {
+                    const st = unloadGuardRef.current || {};
+                    if (st.loading || st.isFormLocked || st.isSubmitting) {
                         e.preventDefault();
                         e.returnValue = 'Tem certeza que deseja sair? Seu pedido está sendo processado!';
                         return e.returnValue;
                     }
                 };
-                window.addEventListener('beforeunload', handleBeforeUnload);
-                return () => { window.removeEventListener('beforeunload', handleBeforeUnload); };
-            }, [loading, isFormLocked, isSubmitting]);
+                try { window.addEventListener('beforeunload', handleBeforeUnload); } catch(e) {}
 
-            const validationErrors = useMemo(() => {
-                if (!submitAttempted) return {};
+                return () => { 
+                    try { window.removeEventListener('beforeunload', handleBeforeUnload); } catch(e) {}
+                    clearTimeout(analyticsTimer); 
+                    clearInterval(timerInterval); 
+                }
+            }, []);
+
+            // ✅ useMemo: cálculo de progresso fora do ciclo de efeitos
+            const progressBarWidth = useMemo(() => {
+                const totalFields = 5;
+                let filled = 0;
+                if (formData.name) filled++;
+                if (formData.email) filled++;
+                if (formData.phone) filled++;
+                if (formData.cpf) filled++;
+                if (formData.address || formData.number) filled++;
+                const progress = Math.min((filled / totalFields) * 100, 100);
+                return `${progress}%`;
+            }, [formData.name, formData.email, formData.phone, formData.cpf, formData.address, formData.number]);
+
+            // ✅ useMemo: cálculo de erros reaproveitável no submit (evita duplicar lógica)
+            const computedErrors = useMemo(() => {
                 const errors = {};
                 if (!formData.name || !formData.name.trim()) errors.name = 'Nome obrigatório';
                 if (!formData.email || !formData.email.trim()) errors.email = 'E-mail obrigatório';
@@ -164,25 +195,33 @@ useLayoutEffect(() => {
                 if (!formData.phone || !formData.phone.trim()) errors.phone = 'Telefone obrigatório';
                 else if (formData.phone.replace(/\D/g, '').length < 10) errors.phone = 'Telefone inválido';
                 return errors;
-            }, [formData, submitAttempted]);
+            }, [formData.name, formData.email, formData.phone]);
+
+            const validationErrors = useMemo(() => {
+                if (!submitAttempted) return {};
+                return computedErrors;
+            }, [computedErrors, submitAttempted]);
 
             // --- PROGRESSIVE MATCHING (O Espião) ---
-            const handleBlur = (field) => {
+            const handleBlur = async (field) => {
                 if (!formData[field]) return;
                 
                 // Validação básica antes de enviar
                 let isValid = false;
                 if (field === 'email' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) isValid = true;
                 if (field === 'phone' && formData.phone.replace(/\D/g, '').length >= 10) isValid = true;
-                
-                if (isValid) {
-                    trackEvent('InputCaptured', { 
-                        field_name: field, 
-                        event_id: window.generateEventId(),
-                        // Envia o dado hasheado ou cru (o pixel cuida do hash geralmente, ou envie cru se for server-side seguro)
-                        [field]: formData[field] 
-                    });
-                }
+                if (!isValid) return;
+
+                // Hash somente para email/phone
+                let raw = formData[field];
+                if (field === 'phone') raw = String(raw || '').replace(/\D/g, '');
+                const hashedValue = await hashData(raw);
+
+                trackEvent('InputCaptured', {
+                    field_name: field,
+                    event_id: window.generateEventId(),
+                    [field]: hashedValue
+                });
             };
 
             const trackStartTyping = () => { 
@@ -259,12 +298,16 @@ useLayoutEffect(() => {
                 if (value.replace(/\D/g, '').length === 8 && formData.cep.replace(/\D/g, '') !== value.replace(/\D/g, '')) handleCep(value.replace(/\D/g, ''));
             };
 
-            const handleSubmit = (ev) => {
+	            const handleSubmit = async (ev) => {
+	                try {
                 // CRITICAL FIX: Prevent default FIRST to avoid page reload on Enter key if locked
                 if(ev) ev.preventDefault();
                 
                 // ⭐️ CORREÇÃO 4: Race condition check logo no início ⭐️
                 if (isSubmitting || isFormLocked || loading) return;
+
+                // ✅ DEDUPE: gera UMA vez e reutiliza em todos os disparos desta venda
+                const submitEventId = window.generateEventId ? window.generateEventId() : ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9));
                 
                 setIsSubmitting(true);
                 // BLINDA RACE CONDITION: Desabilita botões IMEDIATAMENTE no DOM
@@ -272,12 +315,7 @@ useLayoutEffect(() => {
                 if (mobileSubmitButtonRef.current) { mobileSubmitButtonRef.current.disabled = true; mobileSubmitButtonRef.current.setAttribute('aria-busy', 'true'); }
                 
                 setSubmitAttempted(true);
-                const errors = {};
-                if (!formData.name || !formData.name.trim()) errors.name = 'Nome obrigatório';
-                if (!formData.email || !formData.email.trim()) errors.email = 'E-mail obrigatório';
-                else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'E-mail inválido';
-                if (!formData.phone || !formData.phone.trim()) errors.phone = 'Telefone obrigatório';
-                else if (formData.phone.replace(/\D/g, '').length < 10) errors.phone = 'Telefone inválido';
+                const errors = computedErrors;
                 
                 if (Object.keys(errors).length > 0) {
                     const firstError = Object.keys(errors)[0];
@@ -286,7 +324,7 @@ useLayoutEffect(() => {
                     trackEvent('Checkout_Error', {
                         error_field: firstError,
                         error_message: errors[firstError],
-                        event_id: window.generateEventId()
+	                        event_id: submitEventId
                     });
 
                     const errorElement = document.querySelector(`[name="${firstError}"]`);
@@ -336,7 +374,25 @@ useLayoutEffect(() => {
                     }
                 }
                 const uniqueOrderId = 'ord_' + new Date().getTime(); 
-                trackEvent('AddPaymentInfo', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId(), order_id: uniqueOrderId });
+
+	                // ✅ Hash antes de enviar (anti-ban / privacy-by-design)
+	                let hashedEmail = null;
+	                let hashedPhone = null;
+	                try {
+	                    hashedEmail = await hashData(finalEmail);
+	                    hashedPhone = await hashData(finalPhone);
+	                } catch (e) {
+	                    hashedEmail = null;
+	                    hashedPhone = null;
+	                }
+
+	                trackEvent('AddPaymentInfo', { 
+	                    ...window.PRODUCT_CONTENT, 
+	                    event_id: submitEventId, 
+	                    order_id: uniqueOrderId,
+	                    email: hashedEmail,
+	                    phone: hashedPhone
+	                });
 
                 // 📋 Salva uma "captura" do checkout no KV (não impacta conversão)
                 try {
@@ -363,7 +419,17 @@ useLayoutEffect(() => {
                 setTimeout(() => { 
                     onSuccess({ ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId }); 
                 }, 800);
-            };
+	                } catch (err) {
+	                    // não trava o usuário em WebView antigo
+	                    try { setIsSubmitting(false); } catch(e) {}
+	                    try { setLoading(false); } catch(e) {}
+	                    try { setIsFormLocked(false); } catch(e) {}
+	                    try {
+	                        if (submitButtonRef.current) { submitButtonRef.current.disabled = false; submitButtonRef.current.removeAttribute('aria-busy'); }
+	                        if (mobileSubmitButtonRef.current) { mobileSubmitButtonRef.current.disabled = false; mobileSubmitButtonRef.current.removeAttribute('aria-busy'); }
+	                    } catch(e) {}
+	                }
+	            };
 
             // ✅ FIX (iOS / WebView): em alguns navegadores embutidos (TikTok/Instagram/iOS),
             // quando o teclado está aberto, o primeiro "tap" em um botão fixo pode apenas
@@ -427,7 +493,7 @@ useLayoutEffect(() => {
             }, [formData.address, formData.cep, cepFailed]);
             
             return e("div", { className: "fade-in w-full min-h-screen font-sans bg-[#f8fafc] form-container" },
-                e("div", { ref: progressRef, className: "progress-bar", style: {width: '10%'} }),
+                e("div", { ref: progressRef, className: "progress-bar", style: {width: progressBarWidth} }),
                 /* ⭐️ SEGURANÇA: Barra visual removida, lógica mantida internamente no componente */
                 e("div", { className: "static-nav bg-white/98 border-b border-gray-200 px-4 flex justify-between items-center z-30 shadow-[0_2px_8px_rgba(0,0,0,0.04)]" },
                     e("button", { type: "button", onTouchStart: handleBackTap,

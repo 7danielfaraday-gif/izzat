@@ -234,8 +234,17 @@
                 // ✅ Anti-vazamento: nunca envie PII/sensíveis para TikTok/Zaraz
                 // (checkout pode ter email/telefone/CPF/endereço, mas isso NÃO vai no tracking)
                 var DROP = ['email','phone','cpf','address','cep','number','city','state','name','firstName','lastName','nome','telefone','tel','mail'];
+                var IS_SHA256 = function(v){ try { return typeof v === 'string' && /^[a-f0-9]{64}$/i.test(v.trim()); } catch(e){ return false; } };
                 for (var i = 0; i < DROP.length; i++) {
-                    try { if (finalData && Object.prototype.hasOwnProperty.call(finalData, DROP[i])) delete finalData[DROP[i]]; } catch(e) {}
+                    try {
+                        var k = DROP[i];
+                        if (!finalData || !Object.prototype.hasOwnProperty.call(finalData, k)) continue;
+
+                        // ✅ Permite SOMENTE hash SHA-256 em email/phone (anti-ban + privacidade)
+                        if ((k === 'email' || k === 'phone') && IS_SHA256(finalData[k])) continue;
+
+                        delete finalData[k];
+                    } catch(e) {}
                 }
 
                 // event_id sempre presente
