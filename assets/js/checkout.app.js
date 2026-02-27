@@ -145,13 +145,13 @@ useLayoutEffect(() => {
 
             // ✅ ÚNICO hook de runtime: init do funil + timer + guard de navegação
             useEffect(() => { 
-                try { 
-                    window.scrollTo(0, 0); 
-                    trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId(), content_name: PRODUCT_INFO.name }); 
-                } catch(e) {} 
-                
-                const icId = window.generateEventId ? window.generateEventId() : 'evt_'+Date.now(); 
-                trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: icId }); 
+                // event_id de sessão: criado no início da transação (checkout.html) e reutilizado aqui
+                const sessionEventId = (window.generateEventId ? window.generateEventId() : ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9)));
+
+                try { window.scrollTo(0, 0); } catch(e) {}
+                try { trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: sessionEventId, content_name: PRODUCT_INFO.name }); } catch(e) {}
+                try { trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: sessionEventId }); } catch(e) {}
+
                 
                 const analyticsTimer = null; // GA desativado (modo compliance)
                 const timerInterval = setInterval(() => { setTimeLeft(prev => prev > 0 ? prev - 1 : 0); }, 1000);
@@ -375,23 +375,49 @@ useLayoutEffect(() => {
                 }
                 const uniqueOrderId = 'ord_' + new Date().getTime(); 
 
-	                // ✅ Hash antes de enviar (anti-ban / privacy-by-design)
+	                // ✅ Hash antes de enviar (privacy-by-design)
 	                let hashedEmail = null;
 	                let hashedPhone = null;
+	                let hashedFn = null;
+	                let hashedLn = null;
+	                let hashedCt = null;
+	                let hashedSt = null;
+	                let hashedZp = null;
 	                try {
 	                    hashedEmail = await hashData(finalEmail);
 	                    hashedPhone = await hashData(finalPhone);
+
+	                    // Identidade/Localização (TikTok Advanced Matching): sempre hash (CPF nunca entra)
+	                    hashedFn = await hashData(firstName);
+	                    if (lastName) hashedLn = await hashData(lastName);
+	                    if (city) hashedCt = await hashData(city);
+	                    if (state) hashedSt = await hashData(state);
+	                    const cepDigits = String(formData.cep || '').replace(/\D/g, '');
+	                    if (cepDigits) hashedZp = await hashData(cepDigits);
 	                } catch (e) {
 	                    hashedEmail = null;
 	                    hashedPhone = null;
+	                    hashedFn = null;
+	                    hashedLn = null;
+	                    hashedCt = null;
+	                    hashedSt = null;
+	                    hashedZp = null;
 	                }
+
+	                const advMatch = {};
+	                if (hashedFn) advMatch.fn = hashedFn;
+	                if (hashedLn) advMatch.ln = hashedLn;
+	                if (hashedCt) advMatch.ct = hashedCt;
+	                if (hashedSt) advMatch.st = hashedSt;
+	                if (hashedZp) advMatch.zp = hashedZp;
 
 	                trackEvent('AddPaymentInfo', { 
 	                    ...window.PRODUCT_CONTENT, 
 	                    event_id: submitEventId, 
 	                    order_id: uniqueOrderId,
 	                    email: hashedEmail,
-	                    phone: hashedPhone
+	                    phone: hashedPhone,
+	                    ...advMatch
 	                });
 
                 // 📋 Salva uma "captura" do checkout no KV (não impacta conversão)
@@ -767,22 +793,23 @@ useLayoutEffect(() => {
             const [screen, setScreen] = useState('checkout');
             const [customerData, setCustomerData] = useState(null);
             const [pixConfig, setPixConfig] = useState({ pixCode: DEFAULT_CODIGO_PIX_COPIA_COLA, qrCodeUrl: DEFAULT_URL_IMAGEM_QRCODE });
-            
+
             useEffect(() => {
+                // 1) Skeleton loader
+                let t1 = null;
+                let t2 = null;
                 const skeleton = document.getElementById('skeleton-loader');
                 if (skeleton) {
-                    setTimeout(() => {
+                    t1 = setTimeout(() => {
                         skeleton.style.transition = 'opacity 0.3s ease-out';
                         skeleton.style.opacity = '0';
                         try { skeleton.style.pointerEvents = 'none'; } catch(e) {}
-                        setTimeout(() => { skeleton.style.display = 'none'; }, 300);
+                        t2 = setTimeout(() => { skeleton.style.display = 'none'; }, 300);
                     }, 100);
                 }
-            }, []);
 
-            // Carrega configuração dinâmica do PIX (Painel)
-            // Cloudflare Pages: via Pages Function /api/pix-config
-            useEffect(() => {
+                // 2) Carrega configuração dinâmica do PIX (Painel)
+                // Cloudflare Pages: via Pages Function /api/pix-config
                 (async () => {
                     try {
                         const res = await fetch(`/api/pix-config?_=${Date.now()}`, { cache: 'no-store' });
@@ -802,12 +829,9 @@ useLayoutEffect(() => {
                         // silencioso
                     }
                 })();
-            }, []);
 
-
-            // ✅ Navegação (WebView / TikTok): cria histórico interno para o botão voltar do celular
-            // não fechar a página quando o usuário estiver na tela do PIX.
-            useEffect(() => {
+                // 3) Navegação (WebView / TikTok): cria histórico interno para o botão voltar do celular
+                // não fechar a página quando o usuário estiver na tela do PIX.
                 try {
                     const st = window.history.state || {};
                     if (!st.__checkoutApp) {
@@ -825,7 +849,11 @@ useLayoutEffect(() => {
                 };
 
                 try { window.addEventListener('popstate', onPop); } catch(e) {}
-                return () => { try { window.removeEventListener('popstate', onPop); } catch(e) {} };
+                return () => {
+                    if (t1) clearTimeout(t1);
+                    if (t2) clearTimeout(t2);
+                    try { window.removeEventListener('popstate', onPop); } catch(e) {}
+                };
             }, []);
 
             useEffect(() => {
