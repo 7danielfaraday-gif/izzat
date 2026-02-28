@@ -153,12 +153,12 @@
     if (DEBUG_MODE) { window.trackingDebug = true; }
 
     function getExternalId() {
-        // Compliance: session-only identifier (não persistente)
+        // Persistência: external_id em localStorage (mantém atribuição entre sessões)
         try {
-            let eid = sessionStorage.getItem('user_external_id');
+            let eid = localStorage.getItem('user_external_id');
             if (!eid) {
                 eid = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
-                sessionStorage.setItem('user_external_id', eid);
+                localStorage.setItem('user_external_id', eid);
             }
             return eid;
         } catch(e) {

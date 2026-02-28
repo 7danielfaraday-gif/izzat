@@ -45,12 +45,12 @@
     }
 
     function getExternalId() {
-        // Compliance: session-only identifier (não persistente)
+        // Persistência: external_id em localStorage (mantém atribuição entre sessões)
         try {
-            let eid = sessionStorage.getItem('user_external_id');
+            let eid = localStorage.getItem('user_external_id');
             if (!eid) {
                 eid = 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-                sessionStorage.setItem('user_external_id', eid);
+                localStorage.setItem('user_external_id', eid);
             }
             return eid;
         } catch (e) {
@@ -81,8 +81,11 @@
     }
 
     
+// ✅ Captura UTMs no primeiro milissegundo (antes de qualquer clique)
+try { saveUTMs(); } catch(e) {}
+
 // Compliance hardening: remove legacy hashed identifiers from previous versions
-try { localStorage.removeItem('user_hashed_email'); localStorage.removeItem('user_hashed_phone'); localStorage.removeItem('user_external_id'); } catch(e) {}
+try { localStorage.removeItem('user_hashed_email'); localStorage.removeItem('user_hashed_phone'); } catch(e) {}
 function getStoredUTMs() {
         const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
         let utms = {};
@@ -101,7 +104,66 @@ function getStoredUTMs() {
         };
     }
     // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
-    function trackViaZaraz(event, data = {}, useBeacon = false) {
+    
+    // ==================================================
+    // BEACON (Zaraz HTTP Events API)
+    // - Envia o evento sem depender do ciclo de vida da página (unload/pagehide)
+    // - Requer endpoint HTTP Events API configurado no Zaraz (padrão: /zaraz/api)
+    // ==================================================
+    function sendZarazBeacon(event, payload) {
+        try {
+            const endpoint = (window && (window.__ZARAZ_HTTP_API_ENDPOINT || window.ZARAZ_HTTP_API_ENDPOINT)) || '/zaraz/api';
+            const body = JSON.stringify({
+                events: [{
+                    client: Object.assign({ __zarazTrack: event }, (payload || {})),
+                    system: {
+                        page: {
+                            url: window.location.href,
+                            title: document.title,
+                            referrer: document.referrer || undefined
+                        },
+                        device: {
+                            language: (navigator && navigator.language) || undefined,
+                            resolution: (window.screen && screen.width && screen.height) ? (screen.width + 'x' + screen.height) : undefined,
+                            viewport: (typeof window.innerWidth === 'number' && typeof window.innerHeight === 'number') ? (window.innerWidth + 'x' + window.innerHeight) : undefined,
+                            "user-agent": (navigator && navigator.userAgent) || undefined
+                        },
+                        cookies: (function(){
+                            const out = {};
+                            try {
+                                ['ttclid','utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(k => {
+                                    const v = (typeof getCookie === 'function') ? getCookie(k) : null;
+                                    if (v) out[k] = v;
+                                });
+                            } catch(e) {}
+                            return out;
+                        })()
+                    }
+                }]
+            });
+
+            if (navigator && typeof navigator.sendBeacon === 'function') {
+                try {
+                    const blob = new Blob([body], { type: 'application/json' });
+                    return navigator.sendBeacon(endpoint, blob);
+                } catch (e) {
+                    return navigator.sendBeacon(endpoint, body);
+                }
+            }
+
+            if (typeof fetch === 'function') {
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body,
+                    keepalive: true
+                }).catch(() => {});
+            }
+        } catch (e) {}
+        return false;
+    }
+
+function trackViaZaraz(event, data = {}, useBeacon = false) {
         try {
 
             let payload = { 
@@ -135,6 +197,11 @@ function getStoredUTMs() {
             // 3. BEACON FALLBACK (A Prova de Falhas para Mobile)
             // Se o Zaraz falhar ou a página fechar, enviamos um sinal direto se tiver endpoint configurado
             // (Nota: Isso é uma implementação avançada, mantida simples aqui para não quebrar sem backend próprio)
+            // 🔥 Real Beacon: se useBeacon=true ou evento de conversão, dispara via navigator.sendBeacon
+            const shouldBeacon = !!useBeacon || event === 'AddToCart' || event === 'CompletePayment';
+            if (shouldBeacon) {
+                sendZarazBeacon(event, payload);
+            }
             
         } catch (error) {
             console.error('Tracking Error:', error);
@@ -168,11 +235,7 @@ function getStoredUTMs() {
     }
     window.scrollTo(0, 0);
 
-    window.addEventListener('load', function() {
-        saveUTMs();
-    });
-
-    // 2. ViewContent Inteligente
+        // 2. ViewContent Inteligente
     var viewContentFired = false;
     function fireViewContent() {
         if (viewContentFired) return;

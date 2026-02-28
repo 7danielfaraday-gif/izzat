@@ -26,8 +26,8 @@ document.addEventListener('DOMContentLoaded', function(){
             id: "AFON-12L-BI" 
         };
 
-        const trackEvent = (event, data = {}) => { 
-            if (window.trackPixel) window.trackPixel(event, data); 
+        const trackEvent = (event, data = {}, useBeacon = false) => { 
+            if (window.trackPixel) window.trackPixel(event, data, useBeacon); 
         };
 
         // 🔐 Hashing nativo (SHA-256) para enviar apenas identificadores criptografados
@@ -146,10 +146,12 @@ useLayoutEffect(() => {
             // ✅ ÚNICO hook de runtime: init do funil + timer + guard de navegação
             useEffect(() => { 
                 // event_id de sessão: criado no início da transação (checkout.html) e reutilizado aqui
-                const sessionEventId = (window.generateEventId ? window.generateEventId() : ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9)));
+                const sessionEventId = (window.getSessionEventId ? window.getSessionEventId() : (window.generateEventId ? window.generateEventId() : ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9))));
+
+                const viewContentEventId = 'evt_vc_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
 
                 try { window.scrollTo(0, 0); } catch(e) {}
-                try { trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: sessionEventId, content_name: PRODUCT_INFO.name }); } catch(e) {}
+                try { trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: viewContentEventId, content_name: PRODUCT_INFO.name }); } catch(e) {}
                 try { trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: sessionEventId }); } catch(e) {}
 
                 
@@ -411,7 +413,18 @@ useLayoutEffect(() => {
 	                if (hashedSt) advMatch.st = hashedSt;
 	                if (hashedZp) advMatch.zp = hashedZp;
 
-	                trackEvent('AddPaymentInfo', { 
+	                
+	                // ✅ Advanced Matching: "carimba" o navegador antes do evento (Manual Advanced Matching)
+	                try {
+	                    if (window.ttq && typeof window.ttq.identify === 'function') {
+	                        const ident = {};
+	                        if (hashedEmail) ident.email = hashedEmail;
+	                        if (hashedPhone) ident.phone = hashedPhone;
+	                        if (Object.keys(ident).length) window.ttq.identify(ident);
+	                    }
+	                } catch(e) {}
+
+trackEvent('AddPaymentInfo', { 
 	                    ...window.PRODUCT_CONTENT, 
 	                    event_id: submitEventId, 
 	                    order_id: uniqueOrderId,
@@ -700,7 +713,7 @@ useLayoutEffect(() => {
                         order_id: customerData.transactionId, 
                         event_id: window.generateEventId(),
                         ref: (window.getRefCode ? (window.getRefCode() || '') : '')
-                    });
+                    }, true);
                 }
                 
                 const step1 = setTimeout(() => setLoadingState(1), 500);
