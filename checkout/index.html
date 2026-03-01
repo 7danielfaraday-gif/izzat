@@ -360,8 +360,10 @@
                 // ✅ Redundância híbrida: dispara SEMPRE em Browser (Pixel) e Server (Zaraz)
                 // ✅ Deduplicação: o mesmo event_id vai nos 2 canais (definido acima)
 
-                // Browser Pixel (ttq possui stub/queue mesmo antes do SDK carregar)
-                if (window.ttq && typeof window.ttq.track === 'function') {
+                // Browser Pixel
+                // ✅ FIX anti-duplicata: só dispara ttq.track() se o Zaraz NÃO estiver ativo.
+                var zarazAtivo = window.zaraz && typeof window.zaraz.track === 'function';
+                if (!zarazAtivo && window.ttq && typeof window.ttq.track === 'function') {
                     try { window.ttq.track(event, payload); } catch(e) {}
                 }
 

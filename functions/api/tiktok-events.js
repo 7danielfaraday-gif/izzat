@@ -27,7 +27,7 @@ function json(data, status = 200) {
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store, max-age=0',
-      'access-control-allow-origin': '*',
+      'access-control-allow-origin': 'https://izzat.shop',
     },
   });
 }
@@ -44,11 +44,11 @@ function pick(obj, fields) {
 }
 
 export async function onRequestOptions() {
-  // CORS preflight
+  // CORS preflight — restrito ao domínio da loja
   return new Response(null, {
     status: 204,
     headers: {
-      'access-control-allow-origin': '*',
+      'access-control-allow-origin': 'https://izzat.shop',
       'access-control-allow-methods': 'POST, OPTIONS',
       'access-control-allow-headers': 'content-type',
       'cache-control': 'no-store',
