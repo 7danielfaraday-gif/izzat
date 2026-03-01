@@ -217,7 +217,17 @@ useLayoutEffect(() => {
                 // Hash somente para email/phone
                 let raw = formData[field];
                 if (field === 'phone') raw = String(raw || '').replace(/\D/g, '');
+                if (field === 'email') raw = String(raw || '').trim().toLowerCase();
                 const hashedValue = await hashData(raw);
+
+                // ✅ FIX: ttq.identify() no blur — aumenta match rate para usuários que abandonam o form
+                try {
+                    if (window.ttq && typeof window.ttq.identify === 'function' && hashedValue) {
+                        const ident = { [field]: hashedValue };
+                        try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
+                        window.ttq.identify(ident);
+                    }
+                } catch(e) {}
 
                 trackEvent('InputCaptured', {
                     field_name: field,
@@ -375,9 +385,24 @@ useLayoutEffect(() => {
                         city = formData.city;
                     }
                 }
+
+                // ✅ FIX: Normalização conforme spec TikTok Events API antes do hash
+                // Sem normalização correta o match falha silenciosamente
+                const ttNorm = {
+                    email:   v => (v || '').trim().toLowerCase(),
+                    phone:   v => (v || '').replace(/\D/g, ''),           // só dígitos
+                    fn:      v => (v || '').trim().toLowerCase(),          // first name
+                    ln:      v => (v || '').trim().toLowerCase(),          // last name
+                    ct:      v => (v || '').trim().toLowerCase().replace(/\s+/g, ''), // cidade sem espaços
+                    st:      v => (v || '').trim().toLowerCase(),          // estado ex: 'sp'
+                    zp:      v => (v || '').replace(/\D/g, '').slice(0, 8), // CEP só dígitos
+                };
+
+
+
                 const uniqueOrderId = 'ord_' + new Date().getTime(); 
 
-	                // ✅ Hash antes de enviar (privacy-by-design)
+	                // ✅ Hash com normalização correta (privacy-by-design + TikTok spec)
 	                let hashedEmail = null;
 	                let hashedPhone = null;
 	                let hashedFn = null;
@@ -386,15 +411,15 @@ useLayoutEffect(() => {
 	                let hashedSt = null;
 	                let hashedZp = null;
 	                try {
-	                    hashedEmail = await hashData(finalEmail);
-	                    hashedPhone = await hashData(finalPhone);
+	                    hashedEmail = await hashData(ttNorm.email(finalEmail));
+	                    hashedPhone = await hashData(ttNorm.phone(finalPhone));
 
 	                    // Identidade/Localização (TikTok Advanced Matching): sempre hash (CPF nunca entra)
-	                    hashedFn = await hashData(firstName);
-	                    if (lastName) hashedLn = await hashData(lastName);
-	                    if (city) hashedCt = await hashData(city);
-	                    if (state) hashedSt = await hashData(state);
-	                    const cepDigits = String(formData.cep || '').replace(/\D/g, '');
+	                    hashedFn = await hashData(ttNorm.fn(firstName));
+	                    if (lastName) hashedLn = await hashData(ttNorm.ln(lastName));
+	                    if (city) hashedCt = await hashData(ttNorm.ct(city));
+	                    if (state) hashedSt = await hashData(ttNorm.st(state));
+	                    const cepDigits = ttNorm.zp(String(formData.cep || ''));
 	                    if (cepDigits) hashedZp = await hashData(cepDigits);
 	                } catch (e) {
 	                    hashedEmail = null;
@@ -415,11 +440,13 @@ useLayoutEffect(() => {
 
 	                
 	                // ✅ Advanced Matching: "carimba" o navegador antes do evento (Manual Advanced Matching)
+	                // ✅ FIX: external_id incluído para aumentar match rate
 	                try {
 	                    if (window.ttq && typeof window.ttq.identify === 'function') {
 	                        const ident = {};
 	                        if (hashedEmail) ident.email = hashedEmail;
 	                        if (hashedPhone) ident.phone = hashedPhone;
+	                        try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
 	                        if (Object.keys(ident).length) window.ttq.identify(ident);
 	                    }
 	                } catch(e) {}
