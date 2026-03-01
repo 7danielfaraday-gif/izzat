@@ -66,6 +66,26 @@ document.addEventListener('DOMContentLoaded', function(){
         };
 
 
+        // 🔥 CAPI: envia eventos de conversão para o servidor (TikTok Events API server-side)
+        // Espelha o mesmo event_id do browser pixel — TikTok deduplica automaticamente.
+        // Não bloqueia o checkout nem expõe PII: hashes são gerados no browser antes do envio.
+        const sendCAPI = (event, event_id, properties, user) => {
+            try {
+                const payload = JSON.stringify({ event, event_id, properties: properties || {}, user: user || {} });
+                if (navigator && typeof navigator.sendBeacon === 'function') {
+                    const blob = new Blob([payload], { type: 'application/json' });
+                    navigator.sendBeacon('/api/tiktok-events', blob);
+                } else if (typeof fetch === 'function') {
+                    fetch('/api/tiktok-events', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: payload,
+                        keepalive: true
+                    }).catch(() => {});
+                }
+            } catch(e) {}
+        };
+
         const useInputMask = (type) => {
             const mask = useMemo(() => {
                 try {
@@ -148,10 +168,10 @@ useLayoutEffect(() => {
                 // event_id de sessão: criado no início da transação (checkout.html) e reutilizado aqui
                 const sessionEventId = (window.getSessionEventId ? window.getSessionEventId() : (window.generateEventId ? window.generateEventId() : ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9))));
 
-                const viewContentEventId = 'evt_vc_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+                // ❌ ViewContent removido do checkout (já disparado na LP)
+                // ViewContent semântica TikTok = "viu página do produto" — não se aplica ao checkout
 
                 try { window.scrollTo(0, 0); } catch(e) {}
-                try { trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: viewContentEventId, content_name: PRODUCT_INFO.name }); } catch(e) {}
                 try { trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: sessionEventId }); } catch(e) {}
 
                 
@@ -390,7 +410,7 @@ useLayoutEffect(() => {
                 // Sem normalização correta o match falha silenciosamente
                 const ttNorm = {
                     email:   v => (v || '').trim().toLowerCase(),
-                    phone:   v => (v || '').replace(/\D/g, ''),           // só dígitos
+                    phone:   v => '+55' + (v || '').replace(/\D/g, ''),    // E.164: +55 + só dígitos (obrigatório para match TikTok)
                     fn:      v => (v || '').trim().toLowerCase(),          // first name
                     ln:      v => (v || '').trim().toLowerCase(),          // last name
                     ct:      v => (v || '').trim().toLowerCase().replace(/\s+/g, ''), // cidade sem espaços
@@ -459,6 +479,20 @@ trackEvent('AddPaymentInfo', {
 	                    phone: hashedPhone,
 	                    ...advMatch
 	                });
+
+                // 🔥 CAPI: espelha AddPaymentInfo no servidor com o MESMO event_id
+                try {
+                    sendCAPI('AddPaymentInfo', submitEventId, {
+                        ...window.PRODUCT_CONTENT,
+                        order_id: uniqueOrderId,
+                        event_source_url: window.location.href
+                    }, {
+                        email:       hashedEmail,
+                        phone:       hashedPhone,
+                        external_id: (window.getExternalId ? window.getExternalId() : undefined),
+                        ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined)
+                    });
+                } catch(e) {}
 
                 // 📋 Salva uma "captura" do checkout no KV (não impacta conversão)
                 try {
@@ -708,6 +742,8 @@ trackEvent('AddPaymentInfo', {
             const [loadingState, setLoadingState] = useState(0); 
             const [copied, setCopied] = useState(false);
             const [keyboardClosed, setKeyboardClosed] = useState(false);
+            // ✅ Guard: garante que CompletePayment dispara no maximo 1x por montagem do componente
+            const completePaymentFiredRef = useRef(false);
             
             const activeData = customerData || {};
             const firstName = activeData.firstName || 'Cliente';
@@ -730,7 +766,11 @@ trackEvent('AddPaymentInfo', {
                 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
                 requestAnimationFrame(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
                 
-                if (customerData && customerData.transactionId) {
+                if (customerData && customerData.transactionId && !completePaymentFiredRef.current) {
+                    completePaymentFiredRef.current = true;
+                    // ✅ event_id determinístico: usa o transactionId como base
+                    // Mesmo que o componente re-renderize, o TikTok vai deduplicar pelo mesmo event_id
+                    const cpEventId = 'cp_' + customerData.transactionId;
                     // ✅ Anti-vazamento: nunca envie email/telefone/CPF/endereço no tracking
                     trackEvent('CompletePayment', { 
                         ...window.PRODUCT_CONTENT, 
@@ -738,9 +778,23 @@ trackEvent('AddPaymentInfo', {
                         value: 197.99, 
                         currency: 'BRL', 
                         order_id: customerData.transactionId, 
-                        event_id: window.generateEventId(),
+                        event_id: cpEventId,
                         ref: (window.getRefCode ? (window.getRefCode() || '') : '')
                     }, true);
+                    // 🔥 CAPI: espelha CompletePayment no servidor com o MESMO event_id determinístico
+                    try {
+                        sendCAPI('CompletePayment', cpEventId, {
+                            currency: 'BRL',
+                            value: 197.99,
+                            content_id: (window.PRODUCT_CONTENT && window.PRODUCT_CONTENT.content_id) || 'AFON-12L-BI',
+                            content_type: 'product',
+                            order_id: customerData.transactionId,
+                            event_source_url: window.location.href
+                        }, {
+                            external_id: (window.getExternalId ? window.getExternalId() : undefined),
+                            ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined)
+                        });
+                    } catch(e) {}
                 }
                 
                 const step1 = setTimeout(() => setLoadingState(1), 500);

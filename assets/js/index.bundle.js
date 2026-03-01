@@ -10,7 +10,7 @@
         content_name: 'Fritadeira Elétrica Forno Oven 12L Mondial',
         description: 'Fritadeira Elétrica Forno Oven 12L Mondial AFON-12L-BI',
         content_type: 'product',
-        category: 'Eletroportáteis',
+        content_category: 'Eletroportáteis',
         quantity: 1,
         price: 197.99,
         value: 197.99,
