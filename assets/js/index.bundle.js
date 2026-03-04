@@ -180,11 +180,10 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
             // Injeta identificadores recuperados se existirem
 
             // 1. DISPARO MANUAL (Browser-Side)
-            // ✅ FIX anti-duplicata: só dispara ttq.track() se o Zaraz NÃO estiver ativo.
-            // Se o Zaraz estiver configurado com o pixel do TikTok, ele já dispara o evento
-            // server-side — chamar ttq.track() junto geraria duplicata sem deduplicação.
+            // Sempre dispara ttq.track() para garantir sinal no Browser Pixel.
+            // event_id único por chamada garante deduplicação server-side no TikTok Events API.
             const zarazAtivo = window.zaraz && typeof window.zaraz.track === 'function';
-            if (!zarazAtivo && window.ttq && typeof window.ttq.track === 'function') {
+            if (window.ttq && typeof window.ttq.track === 'function') {
                 if (event !== 'PageView') {
                     window.ttq.track(event, payload);
                 }

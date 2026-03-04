@@ -168,8 +168,14 @@ useLayoutEffect(() => {
                 // event_id de sessão: criado no início da transação (checkout.html) e reutilizado aqui
                 const sessionEventId = (window.getSessionEventId ? window.getSessionEventId() : (window.generateEventId ? window.generateEventId() : ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9))));
 
-                // ❌ ViewContent removido do checkout (já disparado na LP)
-                // ViewContent semântica TikTok = "viu página do produto" — não se aplica ao checkout
+                // ✅ ViewContent no checkout: dispara quando usuário chega diretamente na página de checkout
+                // (ex: link de anúncio TikTok aponta direto para /checkout/ sem passar pela LP)
+                try {
+                    var fromLP = document.referrer && (document.referrer.indexOf(window.location.hostname) !== -1) && (document.referrer.indexOf('/checkout') === -1);
+                    if (!fromLP) {
+                        trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId ? window.generateEventId() : ('vc_' + Date.now()) });
+                    }
+                } catch(e) {}
 
                 try { window.scrollTo(0, 0); } catch(e) {}
                 try { trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: sessionEventId }); } catch(e) {}
