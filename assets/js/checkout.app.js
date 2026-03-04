@@ -479,6 +479,11 @@ useLayoutEffect(() => {
 	                
 	                // ✅ Advanced Matching: "carimba" o navegador antes do evento (Manual Advanced Matching)
 	                // ✅ FIX: external_id incluído para aumentar match rate
+	                // ✅ FIX TELEFONE: armazena hashes em window para reusar no CompletePayment
+	                try {
+	                    if (hashedEmail) window.__tt_hashed_email = hashedEmail;
+	                    if (hashedPhone) window.__tt_hashed_phone = hashedPhone;
+	                } catch(e) {}
 	                try {
 	                    if (window.ttq && typeof window.ttq.identify === 'function') {
 	                        const ident = {};
@@ -488,6 +493,9 @@ useLayoutEffect(() => {
 	                        if (Object.keys(ident).length) window.ttq.identify(ident);
 	                    }
 	                } catch(e) {}
+
+	                // ✅ FIX TELEFONE: aguarda 150ms para o TikTok processar o identify antes do track
+	                await new Promise(r => setTimeout(r, 150));
 
 trackEvent('AddPaymentInfo', { 
 	                    ...window.PRODUCT_CONTENT, 
@@ -789,6 +797,19 @@ trackEvent('AddPaymentInfo', {
                     // ✅ event_id determinístico: usa o transactionId como base
                     // Mesmo que o componente re-renderize, o TikTok vai deduplicar pelo mesmo event_id
                     const cpEventId = 'cp_' + customerData.transactionId;
+
+                    // ✅ FIX TELEFONE: re-chama identify antes do CompletePayment
+                    // (usuário pode ter trocado de aba e o cookie de identidade pode ter expirado)
+                    try {
+                        if (window.ttq && typeof window.ttq.identify === 'function') {
+                            const ident = {};
+                            if (window.__tt_hashed_email) ident.email = window.__tt_hashed_email;
+                            if (window.__tt_hashed_phone) ident.phone = window.__tt_hashed_phone;
+                            try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
+                            if (Object.keys(ident).length) window.ttq.identify(ident);
+                        }
+                    } catch(e) {}
+
                     // ✅ Anti-vazamento: nunca envie email/telefone/CPF/endereço no tracking
                     trackEvent('CompletePayment', { 
                         ...window.PRODUCT_CONTENT, 
@@ -802,13 +823,14 @@ trackEvent('AddPaymentInfo', {
                     // 🔥 CAPI: espelha CompletePayment no servidor com o MESMO event_id determinístico
                     try {
                         sendCAPI('CompletePayment', cpEventId, {
+                            ...(window.PRODUCT_CONTENT || {}),
                             currency: 'BRL',
                             value: 197.99,
-                            content_id: (window.PRODUCT_CONTENT && window.PRODUCT_CONTENT.content_id) || 'AFON-12L-BI',
-                            content_type: 'product',
                             order_id: customerData.transactionId,
                             event_source_url: window.location.href
                         }, {
+                            email:       window.__tt_hashed_email || undefined,
+                            phone:       window.__tt_hashed_phone || undefined,
                             external_id: (window.getExternalId ? window.getExternalId() : undefined),
                             ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined)
                         });
