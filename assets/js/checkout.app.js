@@ -242,37 +242,10 @@ useLayoutEffect(() => {
                 return computedErrors;
             }, [computedErrors, submitAttempted]);
 
-            // --- PROGRESSIVE MATCHING (O Espião) ---
-            const handleBlur = async (field) => {
-                if (!formData[field]) return;
-                
-                // Validação básica antes de enviar
-                let isValid = false;
-                if (field === 'email' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) isValid = true;
-                if (field === 'phone' && formData.phone.replace(/\D/g, '').length >= 10) isValid = true;
-                if (!isValid) return;
-
-                // Hash somente para email/phone
-                let raw = formData[field];
-                if (field === 'phone') raw = String(raw || '').replace(/\D/g, '');
-                if (field === 'email') raw = String(raw || '').trim().toLowerCase();
-                const hashedValue = await hashData(raw);
-
-                // ✅ FIX: ttq.identify() no blur — aumenta match rate para usuários que abandonam o form
-                try {
-                    if (window.ttq && typeof window.ttq.identify === 'function' && hashedValue) {
-                        const ident = { [field]: hashedValue };
-                        try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
-                        window.ttq.identify(ident);
-                    }
-                } catch(e) {}
-
-                trackEvent('InputCaptured', {
-                    field_name: field,
-                    event_id: window.generateEventId(),
-                    [field]: hashedValue
-                });
-            };
+            // [COMPLIANCE] Progressive Matching / "O Espião" removido.
+            // ttq.identify() e envio de dados ao TikTok ocorrem SOMENTE no submit (handleSubmit),
+            // após o usuário clicar explicitamente em "Finalizar". Isso está em conformidade com
+            // a política de dados da TikTok e com a LGPD.
 
             const trackStartTyping = () => { 
                 if (!hasTrackedStartRef.current) { 
@@ -667,7 +640,7 @@ trackEvent('AddPaymentInfo', {
                                     e("label", { className: "text-[11px] font-bold text-slate-500 uppercase tracking-wide pl-1 mb-1.5 block" }, "E-mail"),
                                     e("div", {className: "relative"},
                                         e("div", { className: "absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400" }, e(Icons.Mail, {className: "w-5 h-5"})),
-                                        e("input", { type: "email", name: "email", value: formData.email, onChange: handleChange, onBlur: () => handleBlur('email'), className: `w-full py-3.5 pl-11 pr-4 bg-white border ${validationErrors.email ? 'border-red-500 bg-red-50/30' : formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-slate-700 text-base shadow-sm placeholder:text-slate-300 outline-none transition-all duration-200`, placeholder: "exemplo@email.com", required: true, inputMode: "email", disabled: isFormLocked || isSubmitting, autoComplete: "email", autoCorrect: "off", spellCheck: "false", "aria-invalid": validationErrors.email ? "true" : "false", "aria-describedby": validationErrors.email ? "email-error" : undefined })
+                                        e("input", { type: "email", name: "email", value: formData.email, onChange: handleChange, className: `w-full py-3.5 pl-11 pr-4 bg-white border ${validationErrors.email ? 'border-red-500 bg-red-50/30' : formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-slate-700 text-base shadow-sm placeholder:text-slate-300 outline-none transition-all duration-200`, placeholder: "exemplo@email.com", required: true, inputMode: "email", disabled: isFormLocked || isSubmitting, autoComplete: "email", autoCorrect: "off", spellCheck: "false", "aria-invalid": validationErrors.email ? "true" : "false", "aria-describedby": validationErrors.email ? "email-error" : undefined })
                                     ),
                                     validationErrors.email && e("p", { id: "email-error", className: "text-red-500 text-xs mt-1 pl-1" }, validationErrors.email)
                                 ),
@@ -675,7 +648,7 @@ trackEvent('AddPaymentInfo', {
                                     e("label", { className: "text-[11px] font-bold text-slate-500 uppercase tracking-wide pl-1 mb-1.5 block" }, "Celular (WhatsApp)"),
                                     e("div", {className: "relative"},
                                         e("div", { className: "absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400" }, e(Icons.Phone, {className: "w-5 h-5"})),
-                                        e("input", { ref: phoneInputRef, type: "tel", name: "phone", value: formData.phone, onChange: handlePhoneChange, onBlur: () => handleBlur('phone'), className: `w-full py-3.5 pl-11 pr-4 bg-white border ${validationErrors.phone ? 'border-red-500 bg-red-50/30' : formData.phone && formData.phone.replace(/\D/g, '').length >= 10 ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-slate-700 text-base shadow-sm placeholder:text-slate-300 outline-none transition-all duration-200`, placeholder: "(00) 00000-0000", required: true, inputMode: "tel", disabled: isFormLocked || isSubmitting, autoComplete: "tel", maxLength: 15, autoCorrect: "off", autoCapitalize: "off", spellCheck: "false", "aria-invalid": validationErrors.phone ? "true" : "false", "aria-describedby": validationErrors.phone ? "phone-error" : undefined })
+                                        e("input", { ref: phoneInputRef, type: "tel", name: "phone", value: formData.phone, onChange: handlePhoneChange, className: `w-full py-3.5 pl-11 pr-4 bg-white border ${validationErrors.phone ? 'border-red-500 bg-red-50/30' : formData.phone && formData.phone.replace(/\D/g, '').length >= 10 ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-slate-700 text-base shadow-sm placeholder:text-slate-300 outline-none transition-all duration-200`, placeholder: "(00) 00000-0000", required: true, inputMode: "tel", disabled: isFormLocked || isSubmitting, autoComplete: "tel", maxLength: 15, autoCorrect: "off", autoCapitalize: "off", spellCheck: "false", "aria-invalid": validationErrors.phone ? "true" : "false", "aria-describedby": validationErrors.phone ? "phone-error" : undefined })
                                     ),
                                     validationErrors.phone && e("p", { id: "phone-error", className: "text-red-500 text-xs mt-1 pl-1" }, validationErrors.phone)
                                 ),

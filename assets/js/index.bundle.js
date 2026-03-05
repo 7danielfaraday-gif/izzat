@@ -1,5 +1,6 @@
 // ==================================================
-    // 1. TRACKING ZARAZ + TIKTOK TURBO (BEACON + FINGERPRINT)
+    // 1. TRACKING ZARAZ + TIKTOK (BEACON — SEM FINGERPRINT)
+    // Conformidade LGPD: pixel carregado apenas após consentimento (ver index.html).
     // ==================================================
     
     // Dados do Produto
@@ -137,25 +138,12 @@ function getStoredUTMs() {
                     system: {
                         page: {
                             url: window.location.href,
-                            title: document.title,
-                            referrer: document.referrer || undefined
-                        },
-                        device: {
-                            language: (navigator && navigator.language) || undefined,
-                            resolution: (window.screen && screen.width && screen.height) ? (screen.width + 'x' + screen.height) : undefined,
-                            viewport: (typeof window.innerWidth === 'number' && typeof window.innerHeight === 'number') ? (window.innerWidth + 'x' + window.innerHeight) : undefined,
-                            "user-agent": (navigator && navigator.userAgent) || undefined
-                        },
-                        cookies: (function(){
-                            const out = {};
-                            try {
-                                ['ttclid','utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(k => {
-                                    const v = (typeof getCookie === 'function') ? getCookie(k) : null;
-                                    if (v) out[k] = v;
-                                });
-                            } catch(e) {}
-                            return out;
-                        })()
+                            title: document.title
+                            // [COMPLIANCE] referrer, device e cookies removidos.
+                            // user-agent, resolução e viewport = fingerprinting de dispositivo
+                            // (viola política de dados TikTok). O user-agent é coletado
+                            // server-side pela função tiktok-events.js via header HTTP nativo.
+                        }
                     }
                 }]
             });
