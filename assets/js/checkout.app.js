@@ -188,7 +188,8 @@ useLayoutEffect(() => {
                         event_source_url: window.location.href
                     }, {
                         external_id: (window.getExternalId ? window.getExternalId() : undefined),
-                        ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined)
+                        ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
+                        ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                     });
                 } catch(e) {}
 
@@ -467,7 +468,7 @@ useLayoutEffect(() => {
 	                    if (window.ttq && typeof window.ttq.identify === 'function') {
 	                        const ident = {};
 	                        if (hashedEmail) ident.email = hashedEmail;
-	                        if (hashedPhone) ident.phone = hashedPhone;
+	                        if (hashedPhone) ident.phone_number = hashedPhone;
 	                        try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
 	                        if (Object.keys(ident).length) window.ttq.identify(ident);
 	                    }
@@ -481,7 +482,7 @@ trackEvent('AddPaymentInfo', {
 	                    event_id: submitEventId, 
 	                    order_id: uniqueOrderId,
 	                    email: hashedEmail,
-	                    phone: hashedPhone,
+	                    phone_number: hashedPhone,
 	                    ...advMatch
 	                });
 
@@ -493,9 +494,10 @@ trackEvent('AddPaymentInfo', {
                         event_source_url: window.location.href
                     }, {
                         email:       hashedEmail,
-                        phone:       hashedPhone,
+                        phone_number:       hashedPhone,
                         external_id: (window.getExternalId ? window.getExternalId() : undefined),
-                        ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined)
+                        ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
+                        ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                     });
                 } catch(e) {}
 
@@ -783,7 +785,7 @@ trackEvent('AddPaymentInfo', {
                         if (window.ttq && typeof window.ttq.identify === 'function') {
                             const ident = {};
                             if (window.__tt_hashed_email) ident.email = window.__tt_hashed_email;
-                            if (window.__tt_hashed_phone) ident.phone = window.__tt_hashed_phone;
+                            if (window.__tt_hashed_phone) ident.phone_number = window.__tt_hashed_phone;
                             try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
                             if (Object.keys(ident).length) window.ttq.identify(ident);
                         }
@@ -797,6 +799,8 @@ trackEvent('AddPaymentInfo', {
                         currency: 'BRL', 
                         order_id: customerData.transactionId, 
                         event_id: cpEventId,
+                        email: window.__tt_hashed_email || undefined,
+                        phone_number: window.__tt_hashed_phone || undefined,
                         ref: (window.getRefCode ? (window.getRefCode() || '') : '')
                     }, true);
                     // 🔥 CAPI: espelha CompletePayment no servidor com o MESMO event_id determinístico
@@ -809,9 +813,10 @@ trackEvent('AddPaymentInfo', {
                             event_source_url: window.location.href
                         }, {
                             email:       window.__tt_hashed_email || undefined,
-                            phone:       window.__tt_hashed_phone || undefined,
+                            phone_number:       window.__tt_hashed_phone || undefined,
                             external_id: (window.getExternalId ? window.getExternalId() : undefined),
-                            ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined)
+                            ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
+                        ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                         });
                     } catch(e) {}
                 }

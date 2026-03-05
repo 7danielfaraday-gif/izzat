@@ -12,7 +12,7 @@
 const TIKTOK_EVENTS_API = 'https://business-api.tiktok.com/open_api/v1.3/event/track/';
 
 // Campos aceitos no payload de user para Advanced Matching
-const USER_FIELDS = ['email', 'phone', 'external_id', 'ttclid'];
+const USER_FIELDS = ['email', 'phone_number', 'external_id', 'ttclid', 'ttp'];
 
 // Campos aceitos no payload de properties
 const PROPS_FIELDS = [
