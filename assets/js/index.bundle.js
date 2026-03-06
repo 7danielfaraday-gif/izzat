@@ -404,11 +404,12 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
 
       const timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
-          // Quando acaba, reinicia discretamente para manter a pressão (loop infinito sutil)
-          timeLeft = 300; 
-        } else {
-          timeLeft--;
+          clearInterval(timerInterval);
+          localStorage.removeItem('offer_timer_v2');
+          countdownEl.textContent = '⚡ Oferta por tempo limitado';
+          return;
         }
+        timeLeft--;
         localStorage.setItem('offer_timer_v2', timeLeft);
         updateDisplay();
       }, 1000);
