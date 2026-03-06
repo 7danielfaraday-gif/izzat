@@ -101,6 +101,14 @@ export async function onRequestPost(context) {
 
       properties: {
         ...pick(properties, PROPS_FIELDS),
+        // Garante content_id sempre presente: extrai do contents[] se não vier no top-level
+        ...(
+          !properties.content_id &&
+          Array.isArray(properties.contents) &&
+          properties.contents[0]?.content_id
+            ? { content_id: properties.contents[0].content_id }
+            : {}
+        ),
         // URL confiável: prefere o header Origin/Referer server-side
         event_source_url:
           context.request.headers.get('referer') ||
