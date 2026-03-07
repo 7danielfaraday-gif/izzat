@@ -187,6 +187,7 @@ useLayoutEffect(() => {
                         ...window.PRODUCT_CONTENT,
                         event_source_url: window.location.href
                     }, {
+                        external_id: window.__tt_hashed_external_id || undefined,
                         ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
                         ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                     });
@@ -422,6 +423,7 @@ useLayoutEffect(() => {
 	                // ✅ Hash com normalização correta (privacy-by-design + TikTok spec)
 	                let hashedEmail = null;
 	                let hashedPhone = null;
+	                let hashedExternalId = null;
 	                let hashedFn = null;
 	                let hashedLn = null;
 	                let hashedCt = null;
@@ -430,6 +432,7 @@ useLayoutEffect(() => {
 	                try {
 	                    hashedEmail = await hashData(ttNorm.email(finalEmail));
 	                    hashedPhone = await hashData(ttNorm.phone(finalPhone));
+	                    hashedExternalId = await hashData((window.getExternalId ? window.getExternalId() : ''));
 
 	                    // Identidade/Localização (TikTok Advanced Matching): sempre hash (CPF nunca entra)
 	                    hashedFn = await hashData(ttNorm.fn(firstName));
@@ -441,6 +444,7 @@ useLayoutEffect(() => {
 	                } catch (e) {
 	                    hashedEmail = null;
 	                    hashedPhone = null;
+	                    hashedExternalId = null;
 	                    hashedFn = null;
 	                    hashedLn = null;
 	                    hashedCt = null;
@@ -461,12 +465,14 @@ useLayoutEffect(() => {
 	                try {
 	                    if (hashedEmail) window.__tt_hashed_email = hashedEmail;
 	                    if (hashedPhone) window.__tt_hashed_phone = hashedPhone;
+	                    if (hashedExternalId) window.__tt_hashed_external_id = hashedExternalId;
 	                } catch(e) {}
 	                try {
 	                    if (window.ttq && typeof window.ttq.identify === 'function') {
 	                        const ident = {};
 	                        if (hashedEmail) ident.email = hashedEmail;
 	                        if (hashedPhone) ident.phone_number = hashedPhone;
+	                        if (hashedExternalId) ident.external_id = hashedExternalId;
 	                        if (Object.keys(ident).length) window.ttq.identify(ident);
 	                    }
 	                } catch(e) {}
@@ -756,6 +762,7 @@ useLayoutEffect(() => {
                             const ident = {};
                             if (window.__tt_hashed_email) ident.email = window.__tt_hashed_email;
                             if (window.__tt_hashed_phone) ident.phone_number = window.__tt_hashed_phone;
+                            if (window.__tt_hashed_external_id) ident.external_id = window.__tt_hashed_external_id;
                             if (Object.keys(ident).length) window.ttq.identify(ident);
                         }
                     } catch(e) {}
@@ -765,7 +772,8 @@ useLayoutEffect(() => {
                         order_id: customerData.transactionId,
                         event_id: apiEventId,
                         email: window.__tt_hashed_email || undefined,
-                        phone_number: window.__tt_hashed_phone || undefined
+                        phone_number: window.__tt_hashed_phone || undefined,
+                        external_id: window.__tt_hashed_external_id || undefined
                     });
 
                     try {
@@ -776,6 +784,7 @@ useLayoutEffect(() => {
                         }, {
                             email: window.__tt_hashed_email || undefined,
                             phone_number: window.__tt_hashed_phone || undefined,
+                            external_id: window.__tt_hashed_external_id || undefined,
                             ttclid: (window.getTTCLID ? window.getTTCLID() : undefined),
                             ttp: (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                         });
@@ -795,6 +804,7 @@ useLayoutEffect(() => {
                             const ident = {};
                             if (window.__tt_hashed_email) ident.email = window.__tt_hashed_email;
                             if (window.__tt_hashed_phone) ident.phone_number = window.__tt_hashed_phone;
+                            if (window.__tt_hashed_external_id) ident.external_id = window.__tt_hashed_external_id;
                             if (Object.keys(ident).length) window.ttq.identify(ident);
                         }
                     } catch(e) {}
@@ -809,6 +819,7 @@ useLayoutEffect(() => {
                         event_id: cpEventId,
                         email: window.__tt_hashed_email || undefined,
                         phone_number: window.__tt_hashed_phone || undefined,
+                        external_id: window.__tt_hashed_external_id || undefined,
                         ref: (window.getRefCode ? (window.getRefCode() || '') : '')
                     }, true);
                     // 🔥 CAPI: espelha CompletePayment no servidor com o MESMO event_id determinístico
@@ -822,6 +833,7 @@ useLayoutEffect(() => {
                         }, {
                             email:       window.__tt_hashed_email || undefined,
                             phone_number:       window.__tt_hashed_phone || undefined,
+                            external_id: window.__tt_hashed_external_id || undefined,
                             ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
                         ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                         });
