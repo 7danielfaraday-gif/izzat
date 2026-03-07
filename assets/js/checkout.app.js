@@ -187,7 +187,6 @@ useLayoutEffect(() => {
                         ...window.PRODUCT_CONTENT,
                         event_source_url: window.location.href
                     }, {
-                        external_id: (window.getExternalId ? window.getExternalId() : undefined),
                         ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
                         ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                     });
@@ -458,8 +457,7 @@ useLayoutEffect(() => {
 
 	                
 	                // ✅ Advanced Matching: "carimba" o navegador antes do evento (Manual Advanced Matching)
-	                // ✅ FIX: external_id incluído para aumentar match rate
-	                // ✅ FIX TELEFONE: armazena hashes em window para reusar no CompletePayment
+	                // ✅ FIX TELEFONE: armazena hashes em window para reusar nas etapas finais do funil
 	                try {
 	                    if (hashedEmail) window.__tt_hashed_email = hashedEmail;
 	                    if (hashedPhone) window.__tt_hashed_phone = hashedPhone;
@@ -469,37 +467,12 @@ useLayoutEffect(() => {
 	                        const ident = {};
 	                        if (hashedEmail) ident.email = hashedEmail;
 	                        if (hashedPhone) ident.phone_number = hashedPhone;
-	                        try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
 	                        if (Object.keys(ident).length) window.ttq.identify(ident);
 	                    }
 	                } catch(e) {}
 
-	                // ✅ FIX TELEFONE: aguarda 150ms para o TikTok processar o identify antes do track
+	                // ✅ FIX TELEFONE: aguarda 150ms para o TikTok processar o identify antes de avançar
 	                await new Promise(r => setTimeout(r, 150));
-
-trackEvent('AddPaymentInfo', { 
-	                    ...window.PRODUCT_CONTENT, 
-	                    event_id: submitEventId, 
-	                    order_id: uniqueOrderId,
-	                    email: hashedEmail,
-	                    phone_number: hashedPhone,
-	                    ...advMatch
-	                });
-
-                // 🔥 CAPI: espelha AddPaymentInfo no servidor com o MESMO event_id
-                try {
-                    sendCAPI('AddPaymentInfo', submitEventId, {
-                        ...window.PRODUCT_CONTENT,
-                        order_id: uniqueOrderId,
-                        event_source_url: window.location.href
-                    }, {
-                        email:       hashedEmail,
-                        phone_number:       hashedPhone,
-                        external_id: (window.getExternalId ? window.getExternalId() : undefined),
-                        ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
-                        ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
-                    });
-                } catch(e) {}
 
                 // 📋 Salva uma "captura" do checkout no KV (não impacta conversão)
                 try {
@@ -749,7 +722,8 @@ trackEvent('AddPaymentInfo', {
             const [loadingState, setLoadingState] = useState(0); 
             const [copied, setCopied] = useState(false);
             const [keyboardClosed, setKeyboardClosed] = useState(false);
-            // ✅ Guard: garante que CompletePayment dispara no maximo 1x por montagem do componente
+            // ✅ Guard: garante disparo único dos eventos finais por montagem do componente
+            const addPaymentInfoFiredRef = useRef(false);
             const completePaymentFiredRef = useRef(false);
             
             const activeData = customerData || {};
@@ -773,6 +747,41 @@ trackEvent('AddPaymentInfo', {
                 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
                 requestAnimationFrame(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
                 
+                if (customerData && customerData.transactionId && !addPaymentInfoFiredRef.current) {
+                    addPaymentInfoFiredRef.current = true;
+                    const apiEventId = 'api_' + customerData.transactionId;
+
+                    try {
+                        if (window.ttq && typeof window.ttq.identify === 'function') {
+                            const ident = {};
+                            if (window.__tt_hashed_email) ident.email = window.__tt_hashed_email;
+                            if (window.__tt_hashed_phone) ident.phone_number = window.__tt_hashed_phone;
+                            if (Object.keys(ident).length) window.ttq.identify(ident);
+                        }
+                    } catch(e) {}
+
+                    trackEvent('AddPaymentInfo', {
+                        ...window.PRODUCT_CONTENT,
+                        order_id: customerData.transactionId,
+                        event_id: apiEventId,
+                        email: window.__tt_hashed_email || undefined,
+                        phone_number: window.__tt_hashed_phone || undefined
+                    });
+
+                    try {
+                        sendCAPI('AddPaymentInfo', apiEventId, {
+                            ...(window.PRODUCT_CONTENT || {}),
+                            order_id: customerData.transactionId,
+                            event_source_url: window.location.href
+                        }, {
+                            email: window.__tt_hashed_email || undefined,
+                            phone_number: window.__tt_hashed_phone || undefined,
+                            ttclid: (window.getTTCLID ? window.getTTCLID() : undefined),
+                            ttp: (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
+                        });
+                    } catch(e) {}
+                }
+
                 if (customerData && customerData.transactionId && !completePaymentFiredRef.current) {
                     completePaymentFiredRef.current = true;
                     // ✅ event_id determinístico: usa o transactionId como base
@@ -786,7 +795,6 @@ trackEvent('AddPaymentInfo', {
                             const ident = {};
                             if (window.__tt_hashed_email) ident.email = window.__tt_hashed_email;
                             if (window.__tt_hashed_phone) ident.phone_number = window.__tt_hashed_phone;
-                            try { const eid = window.getExternalId ? window.getExternalId() : null; if (eid) ident.external_id = eid; } catch(e) {}
                             if (Object.keys(ident).length) window.ttq.identify(ident);
                         }
                     } catch(e) {}
@@ -814,7 +822,6 @@ trackEvent('AddPaymentInfo', {
                         }, {
                             email:       window.__tt_hashed_email || undefined,
                             phone_number:       window.__tt_hashed_phone || undefined,
-                            external_id: (window.getExternalId ? window.getExternalId() : undefined),
                             ttclid:      (window.getTTCLID ? window.getTTCLID() : undefined),
                         ttp:         (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
                         });

@@ -260,7 +260,6 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
             ...PRODUCT_CONTENT,
             event_source_url: window.location.origin + window.location.pathname
         }, {
-            external_id: getExternalId(),
             ttclid: getTTCLID()
         });
     }
@@ -270,7 +269,7 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
     window.addEventListener('touchmove', fireViewContent, { once: true, passive: true });
 
     // 3. CTA Comprar Agora (WebView-safe: não bloqueia navegação)
-    // Monta o link com parâmetros (ttclid/utm/eid) ANTES do clique, evitando redirect com delay.
+    // Monta o link com parâmetros (ttclid/utm) ANTES do clique, evitando redirect com delay.
     window.buildCheckoutUrl = function(baseHref) {
         try {
             const urlObj = new URL(baseHref, window.location.origin);
@@ -289,13 +288,7 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
                 });
             } catch (e) {}
 
-            // 3) External ID (eid)
-            try {
-                const eid = (typeof getExternalId === 'function') ? getExternalId() : null;
-                if (eid && !urlObj.searchParams.has('eid')) urlObj.searchParams.set('eid', eid);
-            } catch (e) {}
-
-            // 4) ttclid persistido
+            // 3) ttclid persistido
             try {
                 const ttclid = (typeof getTTCLID === 'function') ? getTTCLID() : null;
                 if (ttclid && !urlObj.searchParams.has('ttclid')) urlObj.searchParams.set('ttclid', ttclid);
@@ -329,8 +322,7 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
                     ...PRODUCT_CONTENT,
                     event_source_url: window.location.origin + window.location.pathname
                 }, {
-                    external_id: getExternalId(),
-                    ttclid: getTTCLID()
+                            ttclid: getTTCLID()
                 });
             } catch (e) {}
         }, { passive: true });

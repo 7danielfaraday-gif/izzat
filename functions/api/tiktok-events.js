@@ -21,6 +21,23 @@ const PROPS_FIELDS = [
   'event_source_url', 'description'
 ];
 
+function isSha256Hex(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value.trim());
+}
+
+function buildSafeUser(user) {
+  const raw = pick(user, USER_FIELDS);
+  const safe = {};
+
+  if (isSha256Hex(raw.email)) safe.email = raw.email.trim().toLowerCase();
+  if (isSha256Hex(raw.phone_number)) safe.phone_number = raw.phone_number.trim().toLowerCase();
+  if (isSha256Hex(raw.external_id)) safe.external_id = raw.external_id.trim().toLowerCase();
+  if (raw.ttclid) safe.ttclid = raw.ttclid;
+  if (raw.ttp) safe.ttp = raw.ttp;
+
+  return safe;
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -117,7 +134,7 @@ export async function onRequestPost(context) {
       },
 
       user: {
-        ...pick(user, USER_FIELDS),
+        ...buildSafeUser(user),
         ...(ip        && { ip }),
         ...(userAgent && { user_agent: userAgent }),
       },
