@@ -1,5 +1,5 @@
 // ==================================================
-    // 1. TRACKING ZARAZ + TIKTOK (BEACON — SEM FINGERPRINT)
+    // 1. TRACKING PROJETO + TIKTOK (BEACON — SEM FINGERPRINT)
     // Conformidade LGPD: pixel carregado apenas após consentimento (ver index.html).
     // ==================================================
     
@@ -122,119 +122,27 @@ function getStoredUTMs() {
             }
         } catch(e) {}
     }
-    // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
-    
-    // ==================================================
-    // BEACON (Zaraz HTTP Events API)
-    // - Envia o evento sem depender do ciclo de vida da página (unload/pagehide)
-    // - Requer endpoint HTTP Events API configurado no Zaraz (padrão: /zaraz/api)
-    // ==================================================
-    function sendZarazBeacon(event, payload) {
+    // --- FUNÇÃO DE DISPARO DO PROJETO (PIXEL DO NAVEGADOR) ---
+    function trackTikTokEvent(event, data = {}) {
         try {
-            const endpoint = (window && (window.__ZARAZ_HTTP_API_ENDPOINT || window.ZARAZ_HTTP_API_ENDPOINT)) || '/zaraz/api';
-            const body = JSON.stringify({
-                events: [{
-                    client: Object.assign({ __zarazTrack: event }, (payload || {})),
-                    system: {
-                        page: {
-                            url: window.location.href,
-                            title: document.title
-                            // [COMPLIANCE] referrer, device e cookies removidos.
-                            // user-agent, resolução e viewport = fingerprinting de dispositivo
-                            // (viola política de dados TikTok). O user-agent é coletado
-                            // server-side pela função tiktok-events.js via header HTTP nativo.
-                        }
-                    }
-                }]
-            });
-
-            if (navigator && typeof navigator.sendBeacon === 'function') {
-                try {
-                    const blob = new Blob([body], { type: 'application/json' });
-                    return navigator.sendBeacon(endpoint, blob);
-                } catch (e) {
-                    return navigator.sendBeacon(endpoint, body);
-                }
-            }
-
-            if (typeof fetch === 'function') {
-                fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body,
-                    keepalive: true
-                }).catch(() => {});
-            }
-        } catch (e) {}
-        return false;
-    }
-
-function trackViaZaraz(event, data = {}, useBeacon = false) {
-        try {
-
-            let payload = { 
-                ...data, 
+            let payload = {
+                ...data,
                 ...getContext(),
                 ttclid: getTTCLID(),
                 ...getStoredUTMs()
             };
 
-            // Campos compatíveis com Events API (ajuda em matching/atribuição)
             payload.event_time = payload.timestamp || Math.floor(Date.now() / 1000);
             payload.event_source_url = window.location.origin + window.location.pathname;
 
-            // Injeta identificadores recuperados se existirem
-
-            // 1. DISPARO MANUAL (Browser-Side)
-            // Sempre dispara ttq.track() para garantir sinal no Browser Pixel.
-            // event_id único por chamada garante deduplicação server-side no TikTok Events API.
-            const zarazAtivo = window.zaraz && typeof window.zaraz.track === 'function';
-            if (window.ttq && typeof window.ttq.track === 'function') {
-                if (event !== 'PageView') {
-                    window.ttq.track(event, payload);
-                }
+            if (window.ttq && typeof window.ttq.track === 'function' && event !== 'PageView') {
+                window.ttq.track(event, payload);
             }
-
-            // 2. DISPARO ZARAZ (Server-Side)
-            window.__zarazQueue = window.__zarazQueue || [];
-            if (window.zaraz && window.zaraz.track) {
-                window.zaraz.track(event, payload);
-            } else {
-                window.__zarazQueue.push({ event: event, payload: payload });
-            }
-            
-            // 3. BEACON FALLBACK (A Prova de Falhas para Mobile)
-            // Se o Zaraz falhar ou a página fechar, enviamos um sinal direto se tiver endpoint configurado
-            // (Nota: Isso é uma implementação avançada, mantida simples aqui para não quebrar sem backend próprio)
-            // 🔥 Real Beacon: se useBeacon=true ou evento de conversão, dispara via navigator.sendBeacon
-            const shouldBeacon = !!useBeacon || event === 'AddToCart' || event === 'CompletePayment';
-            if (shouldBeacon) {
-                sendZarazBeacon(event, payload);
-            }
-            
         } catch (error) {
             console.error('Tracking Error:', error);
         }
     }
-
-
-
-    // Garante envio server-side assim que o Zaraz estiver disponível (muito comum no TikTok In-App)
-    (function zarazQueueFlusher(){
-        var tries = 0;
-        var timer = setInterval(function(){
-            tries++;
-            if (window.zaraz && window.zaraz.track && window.__zarazQueue && window.__zarazQueue.length) {
-                var q = window.__zarazQueue.splice(0, window.__zarazQueue.length);
-                for (var i = 0; i < q.length; i++) {
-                    try { window.zaraz.track(q[i].event, q[i].payload); } catch(e) {}
-                }
-            }
-            if (tries > 60 || ((window.zaraz && window.zaraz.track) && (!window.__zarazQueue || window.__zarazQueue.length === 0))) {
-                clearInterval(timer);
-            }
-        }, 500);
-    })();
+    window.trackTikTokEvent = trackTikTokEvent;
 
     // --- TRIGGERS ---
 
@@ -251,7 +159,7 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
         viewContentFired = true;
 
         var vcEventId = generateEventId();
-        trackViaZaraz('ViewContent', {
+        trackTikTokEvent('ViewContent', {
             ...PRODUCT_CONTENT,
             event_id: vcEventId
         });
@@ -313,7 +221,7 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
         btn.addEventListener('click', () => {
             try {
                 var atcEventId = generateEventId();
-                trackViaZaraz('AddToCart', {
+                trackTikTokEvent('AddToCart', {
                     ...PRODUCT_CONTENT,
                     event_id: atcEventId
                 }, true);
@@ -338,7 +246,7 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
         const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight * 100;
         if (scrollPercentage >= 50) {
             scroll50Fired = true;
-            trackViaZaraz('ScrollDepth', {
+            trackTikTokEvent('ScrollDepth', {
                 event_id: generateEventId(),
                 depth: '50%'
             });
@@ -468,8 +376,8 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
       viewReviewsBtn.addEventListener('click', (e) => {
         
         // Dispara evento de interesse
-        if(window.trackViaZaraz) {
-            window.trackViaZaraz('Check_Reviews', { event_id: window.generateEventId() });
+        if(window.trackTikTokEvent) {
+            window.trackTikTokEvent('Check_Reviews', { event_id: window.generateEventId() });
         }
 
         // Envolve em requestAnimationFrame para não bloquear o clique inicial
@@ -604,9 +512,9 @@ function trackViaZaraz(event, data = {}, useBeacon = false) {
         else window.changeImage(-1); // Swipe Direita -> Anterior
         
         // ⭐️ NOVO: Rastreia interação com galeria (Micro-Conversão)
-        if (!galleryEventFired && window.trackViaZaraz) {
+        if (!galleryEventFired && window.trackTikTokEvent) {
             galleryEventFired = true;
-            window.trackViaZaraz('Interact_Gallery', { event_id: window.generateEventId() });
+            window.trackTikTokEvent('Interact_Gallery', { event_id: window.generateEventId() });
         }
       }
     }

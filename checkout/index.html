@@ -244,62 +244,12 @@
 
     // Gera imediatamente no início da transação
     try { window.__checkout_event_id = getSessionEventId(); } catch(e) {}
-
-    window.trackingQueue = window.trackingQueue || [];
-
-        // ==================================================
-        // BEACON (Zaraz HTTP Events API)
-        // - Envia o evento sem depender do ciclo de vida da página (unload/pagehide)
-        // - Requer endpoint HTTP Events API configurado no Zaraz (padrão: /zaraz/api)
-        // ==================================================
-        function sendZarazBeacon(event, payload) {
-            try {
-                const endpoint = (window && (window.__ZARAZ_HTTP_API_ENDPOINT || window.ZARAZ_HTTP_API_ENDPOINT)) || '/zaraz/api';
-                const body = JSON.stringify({
-                    events: [{
-                        client: Object.assign({ __zarazTrack: event }, (payload || {})),
-                        system: {
-                            page: {
-                                url: window.location.href,
-                                title: document.title
-                                // [COMPLIANCE] referrer, device e cookies removidos do beacon.
-                                // user-agent, resolução e viewport = fingerprinting de dispositivo
-                                // (violação da política de dados TikTok quando enviado antes do consentimento).
-                                // O user-agent já é coletado server-side pela função tiktok-events.js via header HTTP.
-                            }
-                        }
-                    }]
-                });
-
-                if (navigator && typeof navigator.sendBeacon === 'function') {
-                    try {
-                        const blob = new Blob([body], { type: 'application/json' });
-                        return navigator.sendBeacon(endpoint, blob);
-                    } catch (e) {
-                        return navigator.sendBeacon(endpoint, body);
-                    }
-                }
-
-                if (typeof fetch === 'function') {
-                    fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body,
-                        keepalive: true
-                    }).catch(() => {});
-                }
-            } catch (e) {}
-            return false;
-        }
-
-
-    
     function trackPixel(event, data = {}, useBeacon = false) {
         requestAnimationFrame(() => {
             Promise.resolve().then(() => {
                 var finalData = Object.assign({}, data || {});
 
-                // ✅ Anti-vazamento: nunca envie PII/sensíveis para TikTok/Zaraz
+                // ✅ Anti-vazamento: nunca envie PII/sensíveis para TikTok
                 // (checkout pode ter email/telefone/CPF/endereço, mas isso NÃO vai no tracking)
                 var DROP = ['email','phone','phone_number','external_id','cpf','address','cep','number','city','state','name','firstName','lastName','nome','telefone','tel','mail'];
                 var HASH_ONLY = ['email','phone','phone_number','external_id','fn','ln','ct','st','zp'];
@@ -341,35 +291,9 @@
                     event_source_url: window.location.origin + window.location.pathname,
                     event_time: Math.floor(Date.now() / 1000)
                 });
-
-                var shouldBeacon = !!useBeacon || event === 'AddToCart' || event === 'CompletePayment';
-
-                // ✅ Redundância híbrida: dispara SEMPRE em Browser (Pixel) e Server (Zaraz)
-                // ✅ Deduplicação: o mesmo event_id vai nos 2 canais (definido acima)
-
-                // Browser Pixel — sempre dispara ttq.track() para garantir sinal
-                // (event_id único por chamada garante deduplicação server-side no TikTok)
-                var zarazAtivo = window.zaraz && typeof window.zaraz.track === 'function';
+                // Browser Pixel do projeto
                 if (window.ttq && typeof window.ttq.track === 'function') {
                     try { window.ttq.track(event, payload); } catch(e) {}
-                }
-
-                // Server (Zaraz) — mantém fila para eventos antes do Zaraz carregar
-                window.trackingQueue = window.trackingQueue || [];
-                if (window.zaraz && typeof window.zaraz.track === 'function') {
-                    try {
-                        window.zaraz.track(event, payload);
-                    } catch(e) {
-                        // Se Zaraz falhar, mantém o evento para retry
-                        window.trackingQueue.push({ event: event, data: payload });
-                    }
-                } else {
-                    window.trackingQueue.push({ event: event, data: payload });
-                }
-
-                // 🔥 Real Beacon: garante entrega mesmo com navegação/fechamento imediato
-                if (shouldBeacon) {
-                    sendZarazBeacon(event, payload);
                 }
 
                 // GA fallback (opcional) — payload já está sanitizado
@@ -382,23 +306,6 @@
         });
     }
     window.trackPixel = trackPixel;
-
-    // Flush: se o Zaraz carregar depois (muito comum no navegador do TikTok), envia os eventos enfileirados
-    (function zarazQueueFlusher(){
-        var tries = 0;
-        var timer = setInterval(function(){
-            tries++;
-            if (window.zaraz && window.zaraz.track && window.trackingQueue && window.trackingQueue.length) {
-                var q = window.trackingQueue.splice(0, window.trackingQueue.length);
-                for (var i = 0; i < q.length; i++) {
-                    try { window.zaraz.track(q[i].event, q[i].data); } catch(e) {}
-                }
-            }
-            if (tries > 60 || ((window.zaraz && window.zaraz.track) && (!window.trackingQueue || window.trackingQueue.length === 0))) {
-                clearInterval(timer);
-            }
-        }, 500);
-    })();
 
  
 
