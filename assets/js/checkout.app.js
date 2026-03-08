@@ -46,23 +46,22 @@ document.addEventListener('DOMContentLoaded', function(){
             }
         };
 
-        // 📋 Log opcional de dados capturados no checkout (Cloudflare KV)
-        // Endpoint: /api/checkout-log (POST público). Não bloqueia o fluxo do checkout.
-        const sendCheckoutLog = (payload) => {
+        // 🧾 Criação de pedido interno: salva SOMENTE nome + telefone para o painel operacional.
+        // Não é um 'log paralelo' em background: o checkout cria um pedido real e recebe o order_id.
+        const createOrderRecord = async (payload) => {
             try {
-                const body = JSON.stringify(payload || {});
-                if (navigator && typeof navigator.sendBeacon === 'function') {
-                    const blob = new Blob([body], { type: 'application/json' });
-                    navigator.sendBeacon('/api/checkout-log', blob);
-                } else if (typeof fetch === 'function') {
-                    fetch('/api/checkout-log', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body,
-                        keepalive: true
-                    }).catch(() => {});
-                }
-            } catch(e) {}
+                const res = await fetch('/api/order-create', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(payload || {}),
+                    credentials: 'same-origin'
+                });
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data || !data.ok || !data.order_id) throw new Error('order_create_failed');
+                return data;
+            } catch (e) {
+                return null;
+            }
         };
 
 
@@ -418,7 +417,18 @@ useLayoutEffect(() => {
 
 
 
-                const uniqueOrderId = 'ord_' + new Date().getTime(); 
+                const fallbackOrderId = 'ord_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 8);
+                let uniqueOrderId = fallbackOrderId;
+                try {
+                    const orderRes = await createOrderRecord({
+                        name: (formData.name || '').trim(),
+                        phone: finalPhone,
+                        ref: (window.getRefCode ? (window.getRefCode() || '') : ''),
+                        source: 'checkout_public',
+                        status: 'pending'
+                    });
+                    if (orderRes && orderRes.order_id) uniqueOrderId = orderRes.order_id;
+                } catch(e) {}
 
 	                // ✅ Hash com normalização correta (privacy-by-design + TikTok spec)
 	                let hashedEmail = null;
@@ -480,28 +490,6 @@ useLayoutEffect(() => {
 	                // ✅ FIX TELEFONE: aguarda 150ms para o TikTok processar o identify antes de avançar
 	                await new Promise(r => setTimeout(r, 150));
 
-                // 📋 Salva uma "captura" do checkout no KV (não impacta conversão)
-                try {
-                    const sp = new URLSearchParams(window.location.search || '');
-                    const utm = {
-                        utm_source: sp.get('utm_source') || undefined,
-                        utm_medium: sp.get('utm_medium') || undefined,
-                        utm_campaign: sp.get('utm_campaign') || undefined,
-                        utm_content: sp.get('utm_content') || undefined,
-                        utm_term: sp.get('utm_term') || undefined
-                    };
-                    // ✅ Painel (KV) separado do TikTok: salva SOMENTE o mínimo necessário
-                    // (nome + telefone + order_id + ref). Nada de email/CPF/endereço/UTM.
-                    sendCheckoutLog({
-                        event: 'checkout_submit',
-                        ts_client: Date.now(),
-                        order_id: uniqueOrderId,
-                        name: (formData.name || '').trim(),
-                        phone: finalPhone,
-                        ref: (window.getRefCode ? (window.getRefCode() || '') : '')
-                    });
-                } catch(e) {}
-                
                 setTimeout(() => { 
                     onSuccess({ ...formData, email: finalEmail, phone: finalPhone, firstName, lastName, city, state, transactionId: uniqueOrderId }); 
                 }, 800);
