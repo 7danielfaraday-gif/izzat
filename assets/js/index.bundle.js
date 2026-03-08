@@ -105,15 +105,15 @@ function getStoredUTMs() {
         };
     }
 
-
+    // --- CAPI: espelha eventos de conversão no servidor via /api/tiktok-events ---
     function sendCAPI(event, event_id, properties, user) {
         try {
             var payload = JSON.stringify({ event: event, event_id: event_id, properties: properties || {}, user: user || {} });
             if (navigator && typeof navigator.sendBeacon === 'function') {
                 var blob = new Blob([payload], { type: 'application/json' });
-                navigator.sendBeacon('/api/data-pipe', blob);
+                navigator.sendBeacon('/api/tiktok-events', blob);
             } else if (typeof fetch === 'function') {
-                fetch('/api/data-pipe', {
+                fetch('/api/tiktok-events', {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
                     body: payload,
@@ -122,7 +122,7 @@ function getStoredUTMs() {
             }
         } catch(e) {}
     }
-
+    // --- FUNÇÃO DE DISPARO DO PROJETO (PIXEL DO NAVEGADOR) ---
     function trackTikTokEvent(event, data = {}) {
         try {
             let payload = {
@@ -163,7 +163,7 @@ function getStoredUTMs() {
             ...PRODUCT_CONTENT,
             event_id: vcEventId
         });
-
+        // CAPI: espelha ViewContent no servidor (garante sinal no in-app browser do TikTok)
         sendCAPI('ViewContent', vcEventId, {
             ...PRODUCT_CONTENT,
             event_source_url: window.location.origin + window.location.pathname
@@ -225,7 +225,7 @@ function getStoredUTMs() {
                     ...PRODUCT_CONTENT,
                     event_id: atcEventId
                 }, true);
-
+                // CAPI: espelha AddToCart no servidor
                 sendCAPI('AddToCart', atcEventId, {
                     ...PRODUCT_CONTENT,
                     event_source_url: window.location.origin + window.location.pathname

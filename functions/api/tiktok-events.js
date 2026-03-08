@@ -1,6 +1,13 @@
+// Cloudflare Pages Function: POST /api/tiktok-events
+// Purpose: TikTok Events API (CAPI) — envia eventos server-side espelhando o browser pixel
 //
+// Variáveis de ambiente necessárias (Cloudflare Pages → Settings → Environment Variables):
+//   TIKTOK_PIXEL_ID      — ID do pixel TikTok (ex: "CXXXXXXXXXXXXXXXX")
+//   TIKTOK_ACCESS_TOKEN  — Token gerado no Events Manager → seu pixel → Set Up Web Events → Events API
 //   TIKTOK_TEST_CODE     — (opcional) código de teste para validar sem afetar dados reais
 //
+// Deduplicação: o browser envia o mesmo event_id que este endpoint.
+// O TikTok detecta o par (browser + server) com o mesmo event_id e mantém apenas 1.
 
 const TIKTOK_EVENTS_API = 'https://business-api.tiktok.com/open_api/v1.3/event/track/';
 
@@ -100,6 +107,8 @@ export async function onRequestPost(context) {
                    || context.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
                    || undefined;
     const userAgent = context.request.headers.get('user-agent') || undefined;
+
+    // ── Monta payload para a Events API ──────────────────────────────────────
     const eventPayload = {
       pixel_code:        pixelId,
       event:             event,
@@ -145,6 +154,8 @@ export async function onRequestPost(context) {
         }
       }
     }
+
+    // ── Disparo para a Events API ─────────────────────────────────────────────
     const apiBody = JSON.stringify({ data: [eventPayload] });
 
     const apiRes = await fetch(TIKTOK_EVENTS_API, {
@@ -161,14 +172,14 @@ export async function onRequestPost(context) {
 
     if (!apiRes.ok) {
       // Loga no Cloudflare Workers Logs mas não quebra o checkout
-      console.error('[dp] API error', apiRes.status, JSON.stringify(apiJson));
+      console.error('[tiktok-events] API error', apiRes.status, JSON.stringify(apiJson));
       return json({ ok: false, error: 'api_error', status: apiRes.status, detail: apiJson }, 200);
     }
 
     return json({ ok: true, event, event_id: event_id || null });
 
   } catch (err) {
-    console.error('[dp] Unexpected error:', err);
+    console.error('[tiktok-events] Unexpected error:', err);
     return json({ ok: false, error: 'server_error' }, 500);
   }
 }

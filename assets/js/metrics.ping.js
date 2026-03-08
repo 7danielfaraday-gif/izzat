@@ -1,5 +1,8 @@
+// Simple "online now" heartbeat for Cloudflare Pages Functions.
+// Sends a ping every 20s so the backend can count active sessions.
+
 (() => {
-  const SID_KEY = '_session_data_app';
+  const SID_KEY = 'izzat_sid_v1';
 
   const getSid = () => {
     try {
@@ -20,14 +23,14 @@
     const body = JSON.stringify({ sid: getSid(), path: location.pathname, ts: Date.now() });
     try {
       if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/metrics/rt-collect', body);
+        navigator.sendBeacon('/api/metrics/ping', body);
         return;
       }
     } catch {
       // ignore
     }
 
-    fetch('/api/metrics/rt-collect', {
+    fetch('/api/metrics/ping', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body,
@@ -36,5 +39,5 @@
   };
 
   send();
-  setInterval(send, 31500);
+  setInterval(send, 20000);
 })();
