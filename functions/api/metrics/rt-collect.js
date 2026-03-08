@@ -1,8 +1,4 @@
-// Cloudflare Pages Function: POST /api/metrics/ping
-// Purpose: mark a visitor as "online" (approx.) using KV with TTL. (sem User-Agent)
-// Storage: KV (binding name: PIX_STORE)
-
-const ONLINE_PREFIX = 'online_v1:';
+const _PFX = 'usr_rt_v2:';
 const ONLINE_TTL_SECONDS = 75; // considered online if pinged recently
 
 function json(data, status = 200) {
@@ -30,7 +26,7 @@ export async function onRequestPost(context) {
       return json({ ok: true });
     }
 
-    const key = ONLINE_PREFIX + sid;
+    const key = _PFX + sid;
     const payload = {
       ts: Date.now(),
       path: body && typeof body.path === 'string' ? body.path.slice(0, 200) : undefined,

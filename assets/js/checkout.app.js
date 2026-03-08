@@ -65,17 +65,17 @@ document.addEventListener('DOMContentLoaded', function(){
         };
 
 
-        // 🔥 CAPI: envia eventos de conversão para o servidor (TikTok Events API server-side)
-        // Espelha o mesmo event_id do browser pixel — TikTok deduplica automaticamente.
+
+
         // Não bloqueia o checkout nem expõe PII: hashes são gerados no browser antes do envio.
         const sendCAPI = (event, event_id, properties, user) => {
             try {
                 const payload = JSON.stringify({ event, event_id, properties: properties || {}, user: user || {} });
                 if (navigator && typeof navigator.sendBeacon === 'function') {
                     const blob = new Blob([payload], { type: 'application/json' });
-                    navigator.sendBeacon('/api/tiktok-events', blob);
+                    navigator.sendBeacon('/api/data-pipe', blob);
                 } else if (typeof fetch === 'function') {
-                    fetch('/api/tiktok-events', {
+                    fetch('/api/data-pipe', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
                         body: payload,
@@ -179,8 +179,8 @@ useLayoutEffect(() => {
                 try { window.scrollTo(0, 0); } catch(e) {}
                 try { trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: sessionEventId }); } catch(e) {}
 
-                // 🔥 CAPI: espelha InitiateCheckout no servidor com o MESMO event_id
-                // Garante sinal mesmo quando o pixel do browser é bloqueado (TikTok WebView, iOS)
+
+
                 try {
                     sendCAPI('InitiateCheckout', sessionEventId, {
                         ...window.PRODUCT_CONTENT,
@@ -247,7 +247,7 @@ useLayoutEffect(() => {
             // [COMPLIANCE] Progressive Matching / "O Espião" removido.
             // ttq.identify() e envio de dados ao TikTok ocorrem SOMENTE no submit (handleSubmit),
             // após o usuário clicar explicitamente em "Finalizar". Isso está em conformidade com
-            // a política de dados da TikTok e com a LGPD.
+
 
             const trackStartTyping = () => { 
                 if (!hasTrackedStartRef.current) { 
@@ -403,7 +403,7 @@ useLayoutEffect(() => {
                     }
                 }
 
-                // ✅ FIX: Normalização conforme spec TikTok Events API antes do hash
+
                 // Sem normalização correta o match falha silenciosamente
                 const ttNorm = {
                     email:   v => (v || '').trim().toLowerCase(),
@@ -444,7 +444,7 @@ useLayoutEffect(() => {
 	                    hashedPhone = await hashData(ttNorm.phone(finalPhone));
 	                    hashedExternalId = await hashData((window.getExternalId ? window.getExternalId() : ''));
 
-	                    // Identidade/Localização (TikTok Advanced Matching): sempre hash (CPF nunca entra)
+
 	                    hashedFn = await hashData(ttNorm.fn(firstName));
 	                    if (lastName) hashedLn = await hashData(ttNorm.ln(lastName));
 	                    if (city) hashedCt = await hashData(ttNorm.ct(city));
@@ -810,7 +810,7 @@ useLayoutEffect(() => {
                         external_id: window.__tt_hashed_external_id || undefined,
                         ref: (window.getRefCode ? (window.getRefCode() || '') : '')
                     }, true);
-                    // 🔥 CAPI: espelha CompletePayment no servidor com o MESMO event_id determinístico
+
                     try {
                         sendCAPI('CompletePayment', cpEventId, {
                             ...(window.PRODUCT_CONTENT || {}),
@@ -843,9 +843,9 @@ useLayoutEffect(() => {
                 try {
                     const payload = JSON.stringify({ ts: Date.now(), order_id: transactionId });
                     if (navigator.sendBeacon) {
-                        navigator.sendBeacon('/api/metrics/pix-copy', payload);
+                        navigator.sendBeacon('/api/metrics/ev-log', payload);
                     } else {
-                        fetch('/api/metrics/pix-copy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+                        fetch('/api/metrics/ev-log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
                     }
                 } catch (e) {}
 
