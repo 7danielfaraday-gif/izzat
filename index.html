@@ -24,8 +24,7 @@
     !function (w, d, t) {
       w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
     
-      ttq.load('D5KFBTRC77U4919NK6GG');
-      ttq.page();
+      ttq.load('D6SO2KBC77U6M52978A0');
     }(window, document, 'ttq');
     </script>
 <style>
@@ -412,6 +411,45 @@ Simplesmente estou apaixonada, excelente mesmo.</div>
 <div style="font-size: 10px; color: #00d4aa; font-weight: 700;">Compra Verificada</div>
 </div>
 </div>
-</div><script defer="" src="assets/js/index.bundle.js"></script>
+</div>
+<script>
+(function(){
+  // Dados do produto — atualize se mudar o produto/preço
+  var PRODUCT = {
+    content_id:   'airfryer-oven-12l',
+    content_name: 'Air Fryer Oven 12L Mondial',
+    content_type: 'product',
+    currency:     'BRL',
+    value:        197.00,
+    quantity:     1
+  };
+
+  function getTTQ(){ return (window.ttq && typeof window.ttq.track === 'function') ? window.ttq : null; }
+  function evtId(n){ return n + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+  // ViewContent ao carregar a página
+  window.addEventListener('DOMContentLoaded', function(){
+    var ttq = getTTQ();
+    if(!ttq) return;
+    try { ttq.track('ViewContent', PRODUCT, { event_id: evtId('ViewContent') }); } catch(e){}
+  });
+
+  // AddToCart no clique — segura a navegação 350ms para o beacon sair
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('buy-now');
+    if(!btn) return;
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      var dest = btn.getAttribute('href') || '/checkout/';
+      var ttq  = getTTQ();
+      if(!ttq){ window.location.href = dest; return; }
+      try { ttq.track('AddToCart', PRODUCT, { event_id: evtId('AddToCart') }); } catch(err){}
+      // 350ms: suficiente para o beacon sair mesmo em 3G. Imperceptível para o usuário.
+      setTimeout(function(){ window.location.href = dest; }, 350);
+    });
+  });
+})();
+</script>
+<script defer="" src="assets/js/index.bundle.js"></script>
 <script defer src="assets/js/metrics.ping.js"></script>
 </body></html>

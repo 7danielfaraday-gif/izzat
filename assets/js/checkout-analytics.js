@@ -187,6 +187,13 @@
     loadDetected = true;
     state.checkout_loaded = true;
     state.checkout_load_ms = now();
+    // Garante que load_health reflete o carregamento real quando o skeleton some
+    // (caso __ckTrack.checkoutReady ainda não tenha sido chamado pelo checkout.app.js)
+    if (state.load_health.status === 'loading') {
+      state.load_health.status   = 'ok';
+      state.load_health.ready_ms = state.checkout_load_ms;
+      clearTimeout(loadWatchdog);
+    }
     logTime('checkout_loaded', { load_ms: state.checkout_load_ms });
     flush(false);
   }
