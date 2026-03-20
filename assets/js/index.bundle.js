@@ -530,7 +530,9 @@
         
         thumbImg.src = '/assets/img/' + imgName;
         thumbImg.alt = `Miniatura ${i}`;
-        thumbImg.loading = 'lazy';
+        thumbImg.width = 60;
+        thumbImg.height = 60;
+        thumbImg.loading = i <= 4 ? 'eager' : 'lazy';
         
         thumbWrapper.appendChild(thumbImg);
         thumbWrapper.addEventListener('click', () => {
