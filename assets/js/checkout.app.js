@@ -110,14 +110,28 @@
                     window.scrollTo(0, 0); 
                     trackEvent('ViewContent', { ...window.PRODUCT_CONTENT, event_id: window.generateEventId(), content_name: PRODUCT_INFO.name }); 
                 } catch(e) {} 
-                
-                const icId = window.generateEventId ? window.generateEventId() : 'evt_'+Date.now(); 
-                trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: icId }); 
-                
-                const analyticsTimer = setTimeout(() => { if (window.loadAnalytics) window.loadAnalytics(); }, 3500);
+
+                const fireInitiateCheckoutOnFirstScroll = () => {
+                    if (hasTrackedStartRef.current) return;
+                    hasTrackedStartRef.current = true;
+                    const icId = window.generateEventId ? window.generateEventId() : 'evt_' + Date.now();
+                    trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: icId });
+                };
+
+                const onFirstScroll = () => {
+                    fireInitiateCheckoutOnFirstScroll();
+                    window.removeEventListener('scroll', onFirstScroll);
+                };
+
+                if (window.scrollY > 0) fireInitiateCheckoutOnFirstScroll();
+                else window.addEventListener('scroll', onFirstScroll, { passive: true });
+
                 const timerInterval = setInterval(() => { setTimeLeft(prev => prev > 0 ? prev - 1 : 0); }, 1000);
 
-                return () => { clearTimeout(analyticsTimer); clearInterval(timerInterval); }
+                return () => { 
+                    window.removeEventListener('scroll', onFirstScroll);
+                    clearInterval(timerInterval); 
+                }
             }, []);
 
             useEffect(() => { 
@@ -324,7 +338,7 @@
                     }, className: `flex items-center text-slate-400 hover:text-slate-600 transition-colors p-3 -ml-3 btn-tactile ${isFormLocked ? 'opacity-50 cursor-not-allowed' : ''}`, "aria-label": "Voltar", disabled: isFormLocked || isSubmitting }, 
                         e("svg", { className: "w-6 h-6", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "15 18 9 12 15 6"}))
                     ),
-                    e("img", { src: "assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto object-contain", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/assets/img/logo.webp"; } } catch(e) {} } }),
+                    e("img", { src: "/assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto object-contain", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/assets/img/logo.webp"; } } catch(e) {} } }),
                     e("div", {className: "w-12"})
                 ),
                 e("div", { className: "max-w-[500px] lg:max-w-5xl mx-auto p-4 lg:px-8 pt-6 space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start" },
@@ -543,13 +557,15 @@
                                         e("div", {key: index, className: "flex flex-col items-center group"}, e("div", { className: `w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-all ${index === 0 ? 'bg-green-600 text-white shadow-lg shadow-green-500/30 scale-110' : 'bg-slate-100 text-slate-400'}` }, e("span", {className: "font-bold text-sm"}, index + 1)), e("span", { className: `text-[10px] font-bold uppercase tracking-wide ${index === 0 ? 'text-green-700' : 'text-slate-300'}` }, step))
                                     )
                                 ),
-                                e("div", { className: "relative bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 p-4 hover:border-green-400 transition-colors group" }, 
+                                e("div", { onClick: copyPix, className: `relative rounded-xl border-2 border-dashed p-4 transition-colors group cursor-pointer ${copied ? 'bg-green-50 border-green-400' : 'bg-slate-50 border-slate-300 hover:border-green-400'}` }, 
                                     e("div", { className: "absolute -top-3 left-4 bg-white px-2 text-xs font-bold text-slate-500 uppercase tracking-wide" }, "Código PIX"),
-                                    e("div", { className: "w-full text-slate-400 text-xs font-mono break-all line-clamp-2 select-all mb-4 mt-1 opacity-70" }, effectivePixCode),
+                                    copied
+                                        ? e("div", { className: "w-full text-green-600 text-xs font-bold text-center py-1 mb-4 mt-1 flex items-center justify-center gap-1.5" }, e("svg", { className: "w-4 h-4", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "20 6 9 17 4 12"})), "Código copiado!")
+                                        : e("div", { className: "w-full text-slate-400 text-xs font-mono break-all line-clamp-2 select-all mb-4 mt-1 opacity-70" }, effectivePixCode),
                                     e("button", { onClick: copyPix, className: `w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] min-h-[52px] ${copied ? 'bg-green-700' : 'bg-green-500 hover:bg-green-600 shadow-green-500-hover'} btn-tactile` }, copied ? e(React.Fragment, null, e("svg", { key: "icon-cpy", className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "20 6 9 17 4 12"})), "CÓDIGO COPIADO!") : e(React.Fragment, null, e(Icons.Copy, {key: "icon-nocpy", className: "w-5 h-5"}), "CLIQUE PARA COPIAR"))
                                 ),
                                 e("div", {className: "flex justify-between items-center mt-4 px-2"}, e("span", {className: "text-sm text-slate-500 font-medium"}, "Valor Total:"), e("span", {className: "text-xl font-black text-slate-800"}, "R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))),
-                                e("div", { className: "bg-amber-50 border border-amber-100 text-amber-700 font-bold text-sm py-3 rounded-lg text-center mt-6 shadow-sm flex items-center justify-center gap-2" }, e("div", { className: "w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" }), "Aguardando confirmação do banco..."),
+                                e("div", { className: "bg-amber-50 border border-amber-100 text-amber-700 font-bold text-sm py-3 rounded-lg text-center mt-6 shadow-sm flex items-center justify-center gap-2" }, e("div", { className: "w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" }), "Aguardando confirmação do pagamento..."),
                                 e("p", {className: "text-[10px] text-slate-400 text-center mt-6 font-mono"}, "ID: " + transactionId)
                             )
                         ),
