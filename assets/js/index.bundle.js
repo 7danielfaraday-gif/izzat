@@ -1,5 +1,5 @@
 // ==================================================
-    // 1. TRACKING ZARAZ + TIKTOK TURBO (BEACON + FINGERPRINT)
+    // 1. TRACKING FACEBOOK PIXEL + CONVERSIONS API (CAPI)
     // ==================================================
     
     // Dados do Produto
@@ -44,7 +44,7 @@
         return 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-    function getTikTokEventSourceUrl() {
+    function getEventSourceUrl() {
         try {
             var u = new URL(window.location.href);
             u.protocol = 'https:';
@@ -67,14 +67,14 @@
         return eid;
     }
 
-    function getTTCLID() {
+    function getFBCLID() {
         const urlParams = new URLSearchParams(window.location.search);
-        let clickId = urlParams.get('ttclid');
+        let clickId = urlParams.get('fbclid');
         if (clickId) {
-            setCookie('ttclid', clickId, 90);
-            localStorage.setItem('ttclid', clickId);
+            setCookie('fbclid', clickId, 90);
+            localStorage.setItem('fbclid', clickId);
         } else {
-            clickId = localStorage.getItem('ttclid') || getCookie('ttclid');
+            clickId = localStorage.getItem('fbclid') || getCookie('fbclid');
         }
         return clickId;
     }
@@ -102,7 +102,7 @@
     function getContext() {
         let connection = 'unknown';
         if (navigator.connection) {
-            connection = navigator.connection.effectiveType; // '4g', '3g', etc.
+            connection = navigator.connection.effectiveType;
         }
         
         return {
@@ -116,12 +116,24 @@
         };
     }
 
-    function getTTP() {
-        var match = document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/);
+    // Facebook Browser ID (_fbp cookie — set by Facebook Pixel SDK)
+    function getFBP() {
+        var match = document.cookie.match(/(?:^|;\s*)_fbp=([^;]*)/);
         return match ? match[1] : undefined;
     }
 
-    function sendTikTokServerEvent(event, payload) {
+    // Facebook Click ID (_fbc cookie — format: fb.1.{timestamp}.{fbclid})
+    function getFBC() {
+        var match = document.cookie.match(/(?:^|;\s*)_fbc=([^;]*)/);
+        if (match) return match[1];
+        var fbclid = getFBCLID();
+        if (fbclid) {
+            return 'fb.1.' + Date.now() + '.' + fbclid;
+        }
+        return undefined;
+    }
+
+    function sendFacebookServerEvent(event, payload) {
         try {
             var eventId = (payload && payload.event_id) || generateEventId();
             var body = JSON.stringify({
@@ -132,15 +144,15 @@
                     email: payload && payload.email ? payload.email : undefined,
                     phone_number: payload && payload.phone ? payload.phone : undefined,
                     external_id: payload && payload.external_id ? payload.external_id : getExternalId(),
-                    ttclid: payload && payload.ttclid ? payload.ttclid : getTTCLID(),
-                    ttp: getTTP()
+                    fbc: getFBC(),
+                    fbp: getFBP()
                 }
             });
 
             if (navigator.sendBeacon) {
-                navigator.sendBeacon('/api/tiktok-events', new Blob([body], { type: 'application/json' }));
+                navigator.sendBeacon('/api/facebook-events', new Blob([body], { type: 'application/json' }));
             } else {
-                fetch('/api/tiktok-events', {
+                fetch('/api/facebook-events', {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
                     body: body,
@@ -161,25 +173,25 @@
                 ...getContext(),
                 event_id: eventId,
                 external_id: getExternalId(),
-                ttclid: getTTCLID(),
+                fbclid: getFBCLID(),
                 ...getStoredUTMs()
             };
 
             payload.event_time = payload.timestamp || Math.floor(Date.now() / 1000);
-            payload.event_source_url = getTikTokEventSourceUrl();
+            payload.event_source_url = getEventSourceUrl();
 
             if (savedEmail && !payload.email) payload.email = savedEmail;
             if (savedPhone && !payload.phone) payload.phone = savedPhone;
 
-            if (window.ttq && typeof window.ttq.track === 'function') {
+            if (window.fbq && typeof window.fbq === 'function') {
                 try {
                     var browserPayload = { ...payload };
                     delete browserPayload.event_id;
-                    window.ttq.track(event, browserPayload, { event_id: eventId });
+                    window.fbq('track', event, browserPayload, { eventID: eventId });
                 } catch (e) {}
             }
 
-            sendTikTokServerEvent(event, payload);
+            sendFacebookServerEvent(event, payload);
         } catch (error) {
             console.error('Tracking Error:', error);
         }
@@ -188,7 +200,6 @@
     // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
     function trackViaZaraz(event, data = {}, useBeacon = false) {
         try {
-            // Tenta recuperar dados de usuário salvos (Sessão anterior persistente)
             const savedEmail = localStorage.getItem('user_hashed_email');
             const savedPhone = localStorage.getItem('user_hashed_phone');
             const eventId = data.event_id || generateEventId();
@@ -198,24 +209,22 @@
                 event_id: eventId,
                 ...getContext(),
                 external_id: getExternalId(),
-                ttclid: getTTCLID(),
+                fbclid: getFBCLID(),
                 ...getStoredUTMs()
             };
 
-            // Campos compatíveis com Events API (ajuda em matching/atribuição)
             payload.event_time = payload.timestamp || Math.floor(Date.now() / 1000);
-            payload.event_source_url = getTikTokEventSourceUrl();
+            payload.event_source_url = getEventSourceUrl();
 
-            // Injeta identificadores recuperados se existirem
             if (savedEmail && !payload.email) payload.email = savedEmail;
             if (savedPhone && !payload.phone) payload.phone = savedPhone;
 
-            // 1. DISPARO MANUAL (Browser-Side)
-            if (window.ttq && typeof window.ttq.track === 'function') {
+            // 1. DISPARO MANUAL (Browser-Side via Facebook Pixel)
+            if (window.fbq && typeof window.fbq === 'function') {
                 if (event !== 'PageView') {
                     var browserPayload = { ...payload };
                     delete browserPayload.event_id;
-                    window.ttq.track(event, browserPayload, { event_id: eventId });
+                    window.fbq('track', event, browserPayload, { eventID: eventId });
                 }
             }
 
@@ -227,10 +236,6 @@
                 window.__zarazQueue.push({ event: event, payload: payload });
             }
             
-            // 3. BEACON FALLBACK (A Prova de Falhas para Mobile)
-            // Se o Zaraz falhar ou a página fechar, enviamos um sinal direto se tiver endpoint configurado
-            // (Nota: Isso é uma implementação avançada, mantida simples aqui para não quebrar sem backend próprio)
-            
         } catch (error) {
             console.error('Tracking Error:', error);
         }
@@ -238,7 +243,7 @@
 
 
 
-    // Garante envio server-side assim que o Zaraz estiver disponível (muito comum no TikTok In-App)
+    // Garante envio server-side assim que o Zaraz estiver disponível
     (function zarazQueueFlusher(){
         var tries = 0;
         var timer = setInterval(function(){
@@ -275,12 +280,12 @@
             description: PRODUCT_CONTENT.description
         };
 
-        trackPixelAndCAPI('Pageview', {
+        trackPixelAndCAPI('PageView', {
             ...landingPayload,
             event_id: generateEventId()
         });
 
-        trackPixelAndCAPI('LandingPageView', {
+        trackPixelAndCAPI('ViewContent', {
             ...landingPayload,
             event_id: generateEventId()
         });
@@ -303,12 +308,11 @@
     window.addEventListener('touchmove', fireViewContent, { once: true, passive: true });
 
     // 3. CTA Comprar Agora (WebView-safe: não bloqueia navegação)
-    // Monta o link com parâmetros (ttclid/utm/eid) ANTES do clique, evitando redirect com delay.
     window.buildCheckoutUrl = function(baseHref) {
         try {
             const urlObj = new URL(baseHref, window.location.origin);
 
-            // 1) Mantém parâmetros atuais da URL (UTMs, ttclid etc.)
+            // 1) Mantém parâmetros atuais da URL (UTMs, fbclid etc.)
             const currentParams = new URLSearchParams(window.location.search);
             currentParams.forEach((value, key) => {
                 urlObj.searchParams.set(key, value);
@@ -328,10 +332,10 @@
                 if (eid && !urlObj.searchParams.has('eid')) urlObj.searchParams.set('eid', eid);
             } catch (e) {}
 
-            // 4) ttclid persistido
+            // 4) fbclid persistido
             try {
-                const ttclid = (typeof getTTCLID === 'function') ? getTTCLID() : null;
-                if (ttclid && !urlObj.searchParams.has('ttclid')) urlObj.searchParams.set('ttclid', ttclid);
+                const fbclid = (typeof getFBCLID === 'function') ? getFBCLID() : null;
+                if (fbclid && !urlObj.searchParams.has('fbclid')) urlObj.searchParams.set('fbclid', fbclid);
             } catch (e) {}
 
             return urlObj.toString();
@@ -344,12 +348,10 @@
         const btn = document.getElementById('buy-now') || document.querySelector('.buy-btn');
         if (!btn) return;
 
-        // Atualiza href uma vez (e sempre que possível, deixa o browser fazer a navegação nativa)
         try {
             btn.href = window.buildCheckoutUrl(btn.getAttribute('href') || btn.href);
         } catch (e) {}
 
-        // Tracking sem bloquear a navegação
         btn.addEventListener('click', () => {
             try {
                 trackViaZaraz('AddToCart', {
@@ -360,7 +362,7 @@
         }, { passive: true });
     })();
     // ==================================================
-    // 4. MICRO-CONVERSÕES (NOVO: ALIMENTA O ALGORITMO)
+    // 4. MICRO-CONVERSÕES (ALIMENTA O ALGORITMO)
     // ==================================================
 
     // A) Scroll Profundo (Leitura)
@@ -406,16 +408,13 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     
-    // Cronômetro Persistente (Anti-Fake)
     function startCountdown() {
       const countdownEl = document.getElementById('countdown-timer');
       if (!countdownEl) return;
       
-      // Tenta recuperar o tempo do localStorage ou usa 300 (5 min)
       let savedTime = localStorage.getItem('offer_timer_v2');
       let timeLeft = savedTime ? parseInt(savedTime) : 300;
       
-      // Se o tempo acabou ou é inválido, reseta
       if(isNaN(timeLeft) || timeLeft <= 0) timeLeft = 300;
 
       const updateDisplay = () => {
@@ -424,11 +423,10 @@
           countdownEl.textContent = `Termina em ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       };
 
-      updateDisplay(); // Atualiza imediatamente
+      updateDisplay();
 
       const timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
-          // Quando acaba, reinicia discretamente para manter a pressão (loop infinito sutil)
           timeLeft = 300; 
         } else {
           timeLeft--;
@@ -438,7 +436,6 @@
       }, 1000);
     }
     
-    // Data de Entrega
     function updateShippingDate() {
       const shippingEl = document.getElementById('shipping-date');
       if (!shippingEl) return;
@@ -456,7 +453,6 @@
       shippingEl.textContent = `Receba entre ${startDate} e ${endDate}`;
     }
 
-    // Galeria de Imagens
     const totalImages = 8;
     const variantStartIndex = {
       'preto': 1,
@@ -475,7 +471,6 @@
     const viewReviewsBtn = document.querySelector('.add-cart-btn');
     const reviewsSection = document.querySelector('.reviews-section');
     
-    // CORREÇÃO: Remover loader ao carregar imagem
     if (mainImage) {
         mainImage.onload = function() {
             const loader = document.getElementById('image-loading');
@@ -483,19 +478,12 @@
         }
     }
 
-    // FIX INP: Otimização do botão "Ver Avaliações"
-    // ⭐️ NOVO: Rastreamento de Micro-Conversão (Click em Avaliações)
     if (viewReviewsBtn && reviewsSection) {
       viewReviewsBtn.addEventListener('click', (e) => {
-        
-        // Dispara evento de interesse
         if(window.trackViaZaraz) {
             window.trackViaZaraz('Check_Reviews', { event_id: window.generateEventId() });
         }
-
-        // Envolve em requestAnimationFrame para não bloquear o clique inicial
         requestAnimationFrame(() => {
-            // FIX: Alterado de 'smooth' para 'auto' para garantir scroll em mobile (TikTok Browser)
             reviewsSection.scrollIntoView({ behavior: 'auto', block: 'start' });
             showTab('overview');
         });
@@ -544,7 +532,6 @@
     }
 
     function updateImageDisplay() {
-        // FIX INP: Manipulação de DOM pesada movida para requestAnimationFrame
         requestAnimationFrame(() => {
           const imgName = padZero(currentImageIndex) + '.webp';
           mainImage.src = '/assets/img/' + imgName;
@@ -558,7 +545,6 @@
       });
     }
 
-    // ⭐️ CORREÇÃO 1: Tornando a função GLOBAL para o HTML encontrar ⭐️
     window.changeImage = function(dir) {
       currentImageIndex += dir;
       if (currentImageIndex > totalImages) currentImageIndex = 1;
@@ -594,14 +580,12 @@
     startCountdown();     
     updateShippingDate(); 
     
-    // ⭐️ CORREÇÃO 2: SWIPE com verificação de eixo Y (Scroll) ⭐️
     const imgContainer = document.querySelector('.image-container');
     let touchStartX = 0;
     let touchStartY = 0;
     let touchEndX = 0;
     let touchEndY = 0;
     
-    // Controle de disparo único para evento de Galeria
     let galleryEventFired = false;
 
     if (imgContainer) {
@@ -621,12 +605,10 @@
       const xDiff = touchEndX - touchStartX;
       const yDiff = touchEndY - touchStartY;
       
-      // Só muda imagem se movimento horizontal for maior que vertical (para não atrapalhar o scroll)
       if (Math.abs(xDiff) > 50 && Math.abs(xDiff) > Math.abs(yDiff)) {
-        if (xDiff < 0) window.changeImage(1); // Swipe Esquerda -> Próxima
-        else window.changeImage(-1); // Swipe Direita -> Anterior
+        if (xDiff < 0) window.changeImage(1);
+        else window.changeImage(-1);
         
-        // ⭐️ NOVO: Rastreia interação com galeria (Micro-Conversão)
         if (!galleryEventFired && window.trackViaZaraz) {
             galleryEventFired = true;
             window.trackViaZaraz('Interact_Gallery', { event_id: window.generateEventId() });
@@ -638,7 +620,6 @@
     // IZZAT MODAL SYSTEM (Zero-Redirect, DOM-only)
     // =============================================
 
-    // --- Shared: Bottom Sheet open/close ---
     window.__izzatOpenSheet = function(id) {
         var sheet = document.getElementById(id);
         if (!sheet) return;
@@ -649,12 +630,10 @@
         var sheet = document.getElementById(id);
         if (!sheet) return;
         sheet.classList.remove('active');
-        // Only restore scroll if no other sheet is open
         var anyOpen = document.querySelector('.izzat-bottomsheet.active, .izzat-overlay.active');
         if (!anyOpen) document.body.style.overflow = '';
     };
 
-    // --- Task 1: Lightbox for review images ---
     (function initLightbox() {
         var overlay = document.getElementById('izzat-lightbox');
         var lightboxImg = document.getElementById('lightbox-img');
@@ -669,11 +648,9 @@
         function closeLightbox() {
             overlay.classList.remove('active');
             document.body.style.overflow = '';
-            // Delay src clear to let transition finish
             setTimeout(function(){ lightboxImg.src = ''; }, 300);
         }
 
-        // Delegate click on all review images
         document.querySelectorAll('.review-image img').forEach(function(img) {
             img.style.cursor = 'zoom-in';
             img.addEventListener('click', function(e) {
@@ -682,7 +659,6 @@
             });
         });
 
-        // Close on backdrop click (anything that's not the image)
         overlay.addEventListener('click', function(e) {
             if (e.target === overlay || e.target === closeBtn || closeBtn.contains(e.target)) {
                 closeLightbox();
@@ -691,7 +667,6 @@
         closeBtn.addEventListener('click', closeLightbox);
     })();
 
-    // --- Task 3: Trust / Social Proof Bottom Sheet ---
     (function initTrustSheet() {
         var trigger = document.getElementById('seller-trust-trigger');
         var sheetId = 'izzat-trust-sheet';
@@ -710,7 +685,6 @@
         });
     })();
 
-    // --- Task 4: Options Menu Bottom Sheet ---
     (function initMenuSheet() {
         var trigger = document.getElementById('header-menu-trigger');
         var sheetId = 'izzat-menu-sheet';
@@ -729,16 +703,13 @@
         });
     })();
 
-    // Menu navigation handler (opens in-page or new tab for legal pages)
     window.__izzatMenuNav = function(href) {
         window.__izzatCloseSheet('izzat-menu-sheet');
-        // Small delay to let sheet close animation finish
         setTimeout(function() {
             window.location.href = href;
         }, 200);
     };
 
-    // --- Universal: Close all modals on Escape key ---
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             var lightbox = document.getElementById('izzat-lightbox');
@@ -782,7 +753,6 @@
 
         if (!popup) return;
 
-        // Desktop: position popup relative to container's actual screen position
         var container = document.querySelector('.container');
         if (container && window.innerWidth > 480) {
             var rect = container.getBoundingClientRect();

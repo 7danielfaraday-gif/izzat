@@ -294,11 +294,11 @@
                     const orderPayload = JSON.stringify({
                         name: formData.name ? formData.name.trim() : '',
                         phone: finalPhone || '',
-                        ref: (function(){ try { const t = localStorage.getItem('ttclid'); return t ? String(t).slice(-8) : ''; } catch(_){ return ''; } })(),
+                        ref: (function(){ try { const t = localStorage.getItem('fbclid'); return t ? String(t).slice(-8) : ''; } catch(_){ return ''; } })(),
                         source: 'checkout_public',
                         status: 'pending'
                     });
-                    // sendBeacon é o método mais seguro no WebView do TikTok: não fica pendurado
+                    // sendBeacon é o método mais seguro em WebViews: não fica pendurado
                     if (navigator.sendBeacon) {
                         navigator.sendBeacon('/api/order-create', new Blob([orderPayload], { type: 'application/json' }));
                     } else {
@@ -328,7 +328,7 @@
                         try {
                             const ref = document.referrer || '';
                             const sameOrigin = ref && ref.indexOf(window.location.origin) === 0;
-                            const external = /tiktok|instagram|facebook|fb\.|l\.facebook\.com|t\.co|twitter/i.test(ref);
+                            const external = /instagram|facebook|fb\.|l\.facebook\.com|t\.co|twitter|tiktok/i.test(ref);
                             if (window.history.length > 1 && sameOrigin && !external) {
                                 window.history.back();
                             } else {
@@ -344,7 +344,7 @@
                 e("div", { className: "max-w-[500px] lg:max-w-5xl mx-auto p-4 lg:px-8 pt-6 space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start" },
                     e("div", { className: "space-y-4 lg:col-span-5 lg:sticky lg:top-28" },
                         e("div", { className: "bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-5 flex gap-4 border border-slate-100 items-center relative overflow-hidden group" },
-                            e("div", { className: "absolute top-0 left-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow-sm tracking-wide" }, "OFERTA TIKTOK"),
+                            e("div", { className: "absolute top-0 left-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow-sm tracking-wide" }, "OFERTA EXCLUSIVA"),
                             e("div", { className: "w-24 h-24 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 p-2 shadow-inner" }, e("img", { src: PRODUCT_INFO.image, className: "w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-500", alt: PRODUCT_INFO.name, width: "96", height: "96", loading: "eager", decoding: "async", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/" + String(PRODUCT_INFO.image || '').replace(/^\/+/, ''); } } catch(e) {} } })),
                             e("div", {className: "flex-1 min-w-0 mt-2"},
                                 e("h3", { className: "text-sm font-bold text-slate-800 leading-snug line-clamp-2 mb-1" }, PRODUCT_INFO.name),
@@ -724,7 +724,7 @@
                             target.innerHTML = '' +
                                 '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;padding:24px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">' +
                                 '<div style="font-weight:800;font-size:18px;color:#0f172a;margin-bottom:8px;">Não foi possível iniciar o checkout</div>' +
-                                '<div style="font-size:13px;color:#475569;max-width:420px;line-height:1.4;">Tente recarregar a página. Se estiver no navegador do TikTok/Instagram, às vezes ajuda abrir no Chrome/Safari.</div>' +
+                                '<div style="font-size:13px;color:#475569;max-width:420px;line-height:1.4;">Tente recarregar a página. Se estiver no navegador do Instagram/Facebook, às vezes ajuda abrir no Chrome/Safari.</div>' +
                                 '<button style="margin-top:16px;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px 18px;font-weight:800;font-size:14px;min-height:44px;width:100%;max-width:320px;cursor:pointer;" onclick="location.reload()">Recarregar</button>' +
                                 '</div>';
                         }

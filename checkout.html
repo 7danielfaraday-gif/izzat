@@ -4,8 +4,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" name="viewport"/>
-<link crossorigin="" href="https://analytics.tiktok.com" rel="preconnect"/>
-<link href="//analytics.tiktok.com" rel="dns-prefetch"/>
+<link crossorigin="" href="https://connect.facebook.net" rel="preconnect"/>
+<link href="//connect.facebook.net" rel="dns-prefetch"/>
 <title>Checkout - Fritadeira Elétrica Forno Oven 12L</title>
 <meta name="description" content="Finalize sua compra com segurança. Pagamento via PIX com desconto exclusivo e entrega rápida para todo o Brasil."/>
 <meta name="robots" content="noindex, nofollow"/>
@@ -29,7 +29,7 @@
 @media (min-width:1024px){.static-container{max-width:500px;flex-direction:column;align-items:stretch}.static-left-col{width:100%}.static-right-col{width:100%}.checkout-fixed-footer{max-width:480px;left:50%;transform:translateX(-50%)}.form-container{padding-bottom:calc(50vh + env(safe-area-inset-bottom,20px)) !important}}
 </style>
 <script>
-        // Fallback robusto para libs locais (muito comum quebrar em rotas tipo /checkout/ no in-app do TikTok)
+        // Fallback robusto para libs locais (muito comum quebrar em rotas tipo /checkout/ no em In-App Browsers)
         window.__loadScript = window.__loadScript || function(src){
             return new Promise(function(resolve, reject){
                 var s = document.createElement('script');
@@ -113,7 +113,7 @@
                         loader.innerHTML = '' +
                             '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:24px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">' +
                             '<div style="font-weight:800;font-size:18px;color:#0f172a;margin-bottom:8px;">Não foi possível carregar o checkout</div>' +
-                            '<div style="font-size:13px;color:#475569;max-width:420px;line-height:1.4;">Isso pode acontecer em alguns navegadores embutidos (TikTok/Instagram) quando a conexão está instável. Toque abaixo para tentar novamente.</div>' +
+                            '<div style="font-size:13px;color:#475569;max-width:420px;line-height:1.4;">Isso pode acontecer em alguns navegadores embutidos (Instagram/Facebook) quando a conexão está instável. Toque abaixo para tentar novamente.</div>' +
                             '<button style="margin-top:16px;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px 18px;font-weight:800;font-size:14px;min-height:44px;width:100%;max-width:320px;cursor:pointer;" onclick="location.reload()">Recarregar</button>' +
                             '<button style="margin-top:10px;background:transparent;color:#64748b;border:1px solid #e2e8f0;border-radius:12px;padding:12px 18px;font-weight:700;font-size:13px;min-height:44px;width:100%;max-width:320px;cursor:pointer;" onclick="location.href='/'">Voltar para o site</button>' +
                             '</div>';
@@ -145,18 +145,33 @@
     }
     window.getExternalId = getExternalId;
 
-    function getTTCLID() { 
+    function getFBCLID() { 
         try { 
             const u = new URLSearchParams(window.location.search); 
-            const val = u.get('ttclid');
+            const val = u.get('fbclid');
             if(val) { 
-                try { localStorage.setItem('ttclid', val); } catch(e) {}
+                try { localStorage.setItem('fbclid', val); } catch(e) {}
                 return val; 
             }
-            return localStorage.getItem('ttclid');
+            return localStorage.getItem('fbclid');
         } catch (e) { return null; } 
     }
-    window.getTTCLID = getTTCLID;
+    window.getFBCLID = getFBCLID;
+
+    function getFBP() {
+        var match = document.cookie.match(/(?:^|;\s*)_fbp=([^;]*)/);
+        return match ? match[1] : undefined;
+    }
+    window.getFBP = getFBP;
+
+    function getFBC() {
+        var match = document.cookie.match(/(?:^|;\s*)_fbc=([^;]*)/);
+        if (match) return match[1];
+        var fbclid = getFBCLID();
+        if (fbclid) return 'fb.1.' + Date.now() + '.' + fbclid;
+        return undefined;
+    }
+    window.getFBC = getFBC;
 
     const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'msclkid'];
     function getStoredUTMs() {
@@ -253,18 +268,18 @@
     }
     window.generateEventId = generateEventId;
 
-    function getTikTokEventSourceUrl() {
+    function getEventSourceUrl() {
         try { var u=new URL(window.location.href); u.protocol='https:'; u.host='lojaizzat.shop'; return u.toString(); } catch(_){ return 'https://lojaizzat.shop/'; }
     }
-    window.getTikTokEventSourceUrl = getTikTokEventSourceUrl;
+    window.getEventSourceUrl = getEventSourceUrl;
 
     function sendCAPI(event, eventId, properties, user) {
         try {
             var payload = JSON.stringify({ event: event, event_id: eventId, properties: properties || {}, user: user || {} });
             if (navigator && typeof navigator.sendBeacon === 'function') {
-                navigator.sendBeacon('/api/tiktok-events', new Blob([payload], { type: 'application/json' }));
+                navigator.sendBeacon('/api/facebook-events', new Blob([payload], { type: 'application/json' }));
             } else {
-                fetch('/api/tiktok-events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(function(){});
+                fetch('/api/facebook-events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(function(){});
             }
         } catch(_) {}
     }
@@ -281,21 +296,21 @@
                 var eventId = finalData.event_id || window.generateEventId();
                 var payload = Object.assign({}, finalData, window.getStoredUTMs ? window.getStoredUTMs() : {}, {
                     external_id: window.getExternalId ? window.getExternalId() : undefined,
-                    ttclid: window.getTTCLID ? window.getTTCLID() : undefined,
-                    event_source_url: getTikTokEventSourceUrl(),
+                    fbclid: window.getFBCLID ? window.getFBCLID() : undefined,
+                    event_source_url: getEventSourceUrl(),
                     event_time: Math.floor(Date.now() / 1000)
                 });
-                if (window.ttq && typeof window.ttq.track === 'function') {
-                    try { var bp = Object.assign({}, payload); delete bp.event_id; window.ttq.track(event, bp, { event_id: eventId }); } catch(e) {}
+                if (window.fbq && typeof window.fbq === 'function') {
+                    try { var bp = Object.assign({}, payload); delete bp.event_id; window.fbq('track', event, bp, { eventID: eventId }); } catch(e) {}
                 }
                 sendCAPI(event, eventId,
-                    Object.assign({}, window.PRODUCT_CONTENT || {}, { event_source_url: getTikTokEventSourceUrl() }),
+                    Object.assign({}, window.PRODUCT_CONTENT || {}, { event_source_url: getEventSourceUrl() }),
                     {
                         email: finalData.email || undefined,
                         phone_number: finalData.phone || undefined,
                         external_id: window.getExternalId ? window.getExternalId() : undefined,
-                        ttclid: window.getTTCLID ? window.getTTCLID() : undefined,
-                        ttp: (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined
+                        fbc: window.getFBC ? window.getFBC() : undefined,
+                        fbp: window.getFBP ? window.getFBP() : undefined
                     }
                 );
             }).catch(function(e){ console.error('[trackPixel]', e); });
@@ -476,11 +491,11 @@
     window.createInputMask = createInputMask;
     </script>
 <script>
-!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=w[w.TiktokAnalyticsObject],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{};ttq._i[e]={};ttq._i[e]._u=r;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript";n.async=!0;n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
-ttq.load('D6SO2KBC77U6M52978A0');
-ttq.page();
-}(window, document, 'ttq');
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','1477467864082559');
+fbq('track','PageView');
 </script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1477467864082559&ev=PageView&noscript=1"/></noscript>
 <script type="text/javascript">
     (function(c,l,a,r,i,t,y){
         c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
