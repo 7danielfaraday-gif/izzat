@@ -1,7 +1,7 @@
 /**
  * Checkout Behavioral Analytics Tracker v2.0
  * ============================================================
- * LGPD / Facebook Policy Compliant:
+ * LGPD / TikTok Policy Compliant:
  *   ✅ Zero PII captured (no field values, no emails, no CPF)
  *   ✅ No session replay, no mouse coordinates
  *   ✅ No keystroke logging

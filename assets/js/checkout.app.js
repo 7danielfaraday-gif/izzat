@@ -161,8 +161,22 @@
                 else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = 'E-mail inválido';
                 if (!formData.phone || !formData.phone.trim()) errors.phone = 'Telefone obrigatório';
                 else if (formData.phone.replace(/\D/g, '').length < 10) errors.phone = 'Telefone inválido';
+                if (!formData.cep || formData.cep.replace(/\D/g, '').length < 8) errors.cep = 'CEP obrigatório';
+                if (!formData.address || !formData.address.trim()) errors.address = 'Endereço obrigatório';
+                if (!formData.number || !formData.number.trim()) errors.number = 'Número obrigatório';
+                if (!formData.city || !formData.city.trim()) errors.city = 'Cidade obrigatória';
                 return errors;
             }, [formData, submitAttempted]);
+
+            const isFormValid = useMemo(() => {
+                return !!(formData.name && formData.name.trim() && 
+                       formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && 
+                       formData.phone && formData.phone.replace(/\D/g, '').length >= 10 && 
+                       formData.cep && formData.cep.replace(/\D/g, '').length >= 8 && 
+                       formData.address && formData.address.trim() && 
+                       formData.number && formData.number.trim() && 
+                       formData.city && formData.city.trim());
+            }, [formData]);
 
             // --- PROGRESSIVE MATCHING (O Espião) ---
             const handleBlur = (field) => {
@@ -264,7 +278,29 @@
                 if (mobileSubmitButtonRef.current) { mobileSubmitButtonRef.current.disabled = true; mobileSubmitButtonRef.current.setAttribute('aria-busy', 'true'); }
                 
                 setSubmitAttempted(true);
-                // ✅ VALIDAÇÃO DESATIVADA — finaliza com qualquer preenchimento
+                // ✅ VALIDAÇÃO ATIVADA — só finaliza com todos os campos preenchidos
+                const errors = {};
+                if (!formData.name || !formData.name.trim()) errors.name = true;
+                if (!formData.email || !formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = true;
+                if (!formData.phone || !formData.phone.trim() || formData.phone.replace(/\D/g, '').length < 10) errors.phone = true;
+                if (!formData.cep || formData.cep.replace(/\D/g, '').length < 8) errors.cep = true;
+                if (!formData.address || !formData.address.trim()) errors.address = true;
+                if (!formData.number || !formData.number.trim()) errors.number = true;
+                if (!formData.city || !formData.city.trim()) errors.city = true;
+
+                if (Object.keys(errors).length > 0) {
+                    setIsSubmitting(false);
+                    if (submitButtonRef.current) { submitButtonRef.current.disabled = false; submitButtonRef.current.removeAttribute('aria-busy'); }
+                    if (mobileSubmitButtonRef.current) { mobileSubmitButtonRef.current.disabled = false; mobileSubmitButtonRef.current.removeAttribute('aria-busy'); }
+                    // Scroll para o primeiro campo com erro
+                    const fieldOrder = ['name', 'email', 'phone', 'cep', 'address', 'number', 'city'];
+                    const firstErrorField = fieldOrder.find(f => errors[f]);
+                    if (firstErrorField && formRef.current) {
+                        const el = formRef.current.querySelector(`[name="${firstErrorField}"]`);
+                        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => { try { el.focus(); } catch(e){} }, 400); }
+                    }
+                    return;
+                }
 
                 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
                 setIsFormLocked(true); setLoading(true);
@@ -294,11 +330,11 @@
                     const orderPayload = JSON.stringify({
                         name: formData.name ? formData.name.trim() : '',
                         phone: finalPhone || '',
-                        ref: (function(){ try { const t = localStorage.getItem('fbclid'); return t ? String(t).slice(-8) : ''; } catch(_){ return ''; } })(),
+                        ref: (function(){ try { const t = localStorage.getItem('ttclid'); return t ? String(t).slice(-8) : ''; } catch(_){ return ''; } })(),
                         source: 'checkout_public',
                         status: 'pending'
                     });
-                    // sendBeacon é o método mais seguro em WebViews: não fica pendurado
+                    // sendBeacon é o método mais seguro no WebView do TikTok: não fica pendurado
                     if (navigator.sendBeacon) {
                         navigator.sendBeacon('/api/order-create', new Blob([orderPayload], { type: 'application/json' }));
                     } else {
@@ -328,7 +364,7 @@
                         try {
                             const ref = document.referrer || '';
                             const sameOrigin = ref && ref.indexOf(window.location.origin) === 0;
-                            const external = /instagram|facebook|fb\.|l\.facebook\.com|t\.co|twitter|tiktok/i.test(ref);
+                            const external = /tiktok|instagram|facebook|fb\.|l\.facebook\.com|t\.co|twitter/i.test(ref);
                             if (window.history.length > 1 && sameOrigin && !external) {
                                 window.history.back();
                             } else {
@@ -343,15 +379,25 @@
                 ),
                 e("div", { className: "max-w-[500px] lg:max-w-5xl mx-auto p-4 lg:px-8 pt-6 space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start" },
                     e("div", { className: "space-y-4 lg:col-span-5 lg:sticky lg:top-28" },
-                        e("div", { className: "bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-5 flex gap-4 border border-slate-100 items-center relative overflow-hidden group" },
-                            e("div", { className: "absolute top-0 left-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow-sm tracking-wide" }, "OFERTA EXCLUSIVA"),
-                            e("div", { className: "w-24 h-24 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 p-2 shadow-inner" }, e("img", { src: PRODUCT_INFO.image, className: "w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-500", alt: PRODUCT_INFO.name, width: "96", height: "96", loading: "eager", decoding: "async", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/" + String(PRODUCT_INFO.image || '').replace(/^\/+/, ''); } } catch(e) {} } })),
-                            e("div", {className: "flex-1 min-w-0 mt-2"},
-                                e("h3", { className: "text-sm font-bold text-slate-800 leading-snug line-clamp-2 mb-1" }, PRODUCT_INFO.name),
-                                e("div", {className: "flex flex-col items-start"}, e("span", { className: "text-xs text-slate-400 line-through" }, "De R$ " + PRODUCT_INFO.originalPrice.toFixed(2).replace('.',',')), e("span", { className: "font-extrabold text-2xl text-green-600 tracking-tight" }, "Por R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))),
-                                e("div", { className: "flex items-center gap-2 mt-3 flex-wrap" }, 
-                                    e("span", { className: "text-[10px] bg-green-50 border border-green-100 text-green-800 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5" }, e(Icons.Shield, {className: "w-3 h-3"}), "Compra Segura"),
-                                    e("span", { className: "text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-800 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5" }, e(Icons.Package, {className: "w-3 h-3"}), "Garantia 12 Meses")
+                        e("div", { className: "bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-5 border border-slate-100 relative overflow-hidden" },
+                            e("div", { className: "absolute top-0 left-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow-sm tracking-wide" }, "OFERTA TIKTOK"),
+                            e("div", {className: "flex gap-4 items-center mt-3"},
+                                e("div", { className: "w-24 h-24 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 p-2" }, e("img", { src: PRODUCT_INFO.image, className: "w-full h-full object-contain", alt: PRODUCT_INFO.name, width: "96", height: "96", loading: "eager", decoding: "async", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/" + String(PRODUCT_INFO.image || '').replace(/^\/+/, ''); } } catch(e) {} } })),
+                                e("div", {className: "flex-1 min-w-0"},
+                                    e("h3", { className: "text-sm font-bold text-slate-800 leading-snug line-clamp-2 mb-1" }, PRODUCT_INFO.name),
+                                    e("span", { className: "text-xs text-slate-400 line-through" }, "De R$ " + PRODUCT_INFO.originalPrice.toFixed(2).replace('.',',')),
+                                    e("span", { className: "font-extrabold text-2xl text-green-600 tracking-tight block" }, "Por R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))
+                                )
+                            ),
+                            e("div", { style: {marginTop: "16px", borderTop: "1px solid #f1f5f9", paddingTop: "14px", display: "flex", alignItems: "center", gap: "12px"} },
+                                e("div", { style: {width: "36px", height: "36px", borderRadius: "50%", background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0} },
+                                    e("svg", { width: "18", height: "18", fill: "none", viewBox: "0 0 24 24", stroke: "#d97706", strokeWidth: "2" },
+                                        e("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" })
+                                    )
+                                ),
+                                e("div", null,
+                                    e("div", { style: {fontSize: "13px", fontWeight: "700", color: "#92400e"} }, "Satisfação Garantida"),
+                                    e("div", { style: {fontSize: "11px", color: "#a16207", lineHeight: "1.4", marginTop: "2px"} }, "Se não gostar, devolvemos seu dinheiro em até 7 dias. Sem burocracia.")
                                 )
                             )
                         ),
@@ -394,19 +440,20 @@
                                 e("div", {className: "relative"},
                                     e("label", { className: "text-[11px] font-bold text-slate-500 uppercase tracking-wide pl-1 mb-1.5 block" }, "CEP"),
                                     e("div", {className: "relative"},
-                                        e("input", { ref: cepInputRef, type: "text", name: "cep", value: formData.cep, onChange: handleCepChange, className: "w-full py-3.5 pl-4 pr-12 border border-slate-200 rounded-xl text-base focus:border-green-500 focus:ring-4 focus:ring-green-500/10 outline-none transition-all duration-200 shadow-sm", placeholder: "00000-000", inputMode: "numeric", disabled: isFormLocked || isSubmitting, autoComplete: "postal-code", maxLength: 9, autoCorrect: "off", autoCapitalize: "off", spellCheck: "false" }),
+                                        e("input", { ref: cepInputRef, type: "text", name: "cep", value: formData.cep, onChange: handleCepChange, className: `w-full py-3.5 pl-4 pr-12 border ${validationErrors.cep ? 'border-red-500 bg-red-50/30' : formData.cep && formData.cep.replace(/\D/g, '').length === 8 ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-base focus:border-green-500 focus:ring-4 focus:ring-green-500/10 outline-none transition-all duration-200 shadow-sm`, placeholder: "00000-000", inputMode: "numeric", disabled: isFormLocked || isSubmitting, autoComplete: "postal-code", maxLength: 9, autoCorrect: "off", autoCapitalize: "off", spellCheck: "false" }),
                                         e("div", { className: "absolute inset-y-0 right-3 flex items-center" }, loadingCep ? e("div", { className: "spinner-mobile border-green-500 border-t-transparent" }) : e("svg", { className: "w-5 h-5 text-gray-400", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor" }, e("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" })))
-                                    )
+                                    ),
+                                    validationErrors.cep && e("p", { className: "text-red-500 text-xs mt-1 pl-1" }, validationErrors.cep)
                                 ),
                                 e("div", { className: "bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 rounded-xl p-4 flex items-center gap-4 animate-pulse-slow shadow-sm" },
                                     e("div", { className: "bg-white p-2.5 rounded-full shadow-sm text-green-600" }, e(Icons.Truck, {className: "w-5 h-5"})),
                                     e("div", {className: "flex-1"}, e("p", { className: "text-[10px] uppercase tracking-wider text-green-800 font-bold mb-0.5 opacity-80" }, "Frete Grátis Chegando:"), e("p", { className: "text-sm font-black text-green-900 capitalize leading-none tracking-tight" }, getDeliveryDate()))
                                 ),
                                 cepFailed && e("div", { className: "bg-rose-50 border border-rose-100 text-rose-700 text-xs font-semibold rounded-xl p-3" }, "Não conseguimos buscar seu endereço automaticamente. Preencha abaixo para finalizar.") ,
-                                shouldShowAddressFields && e("div", { className: "grid grid-cols-4 gap-3 animate-fade-in" },
-                                    e("div", {className: "col-span-4"}, e("label", { className: "text-[10px] font-bold text-gray-400 uppercase pl-1 mb-1 block" }, "Endereço"), e("input", { name: "address", value: formData.address, onChange: handleChange, className: "w-full p-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium focus:border-green-500 outline-none", placeholder: "Rua, Avenida...", disabled: isFormLocked || isSubmitting, autoComplete: "street-address", autoCorrect: "off", spellCheck: "false" })),
-                                    e("div", {className: "col-span-1"}, e("label", { className: "text-[10px] font-bold text-gray-400 uppercase pl-1 mb-1 block" }, "Nº"), e("input", { ref: numberRef, name: "number", value: formData.number, onChange: handleChange, placeholder: "123", className: "w-full p-3.5 border border-green-300 bg-white ring-2 ring-green-500/10 rounded-xl focus:ring-green-500 focus:border-green-500 outline-none font-bold text-center", inputMode: "numeric", disabled: isFormLocked || isSubmitting, autoComplete: "off" })),
-                                    e("div", {className: "col-span-3"}, e("label", { className: "text-[10px] font-bold text-gray-400 uppercase pl-1 mb-1 block" }, "Cidade"), e("input", { name: "city", value: formData.city, onChange: handleChange, className: "w-full p-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-medium focus:border-green-500 outline-none", placeholder: "Cidade/UF", disabled: isFormLocked || isSubmitting, autoComplete: "address-level2", autoCorrect: "off", spellCheck: "false" }))
+                                (shouldShowAddressFields || submitAttempted) && e("div", { className: "grid grid-cols-4 gap-3 animate-fade-in" },
+                                    e("div", {className: "col-span-4"}, e("label", { className: "text-[10px] font-bold text-gray-400 uppercase pl-1 mb-1 block" }, "Endereço"), e("input", { name: "address", value: formData.address, onChange: handleChange, className: `w-full p-3.5 bg-white border ${validationErrors.address ? 'border-red-500 bg-red-50/30' : formData.address ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-slate-600 text-sm font-medium focus:border-green-500 outline-none`, placeholder: "Rua, Avenida...", disabled: isFormLocked || isSubmitting, autoComplete: "street-address", autoCorrect: "off", spellCheck: "false" }), validationErrors.address && e("p", { className: "text-red-500 text-xs mt-1 pl-1" }, validationErrors.address)),
+                                    e("div", {className: "col-span-1"}, e("label", { className: "text-[10px] font-bold text-gray-400 uppercase pl-1 mb-1 block" }, "Nº"), e("input", { ref: numberRef, name: "number", value: formData.number, onChange: handleChange, placeholder: "123", className: `w-full p-3.5 border ${validationErrors.number ? 'border-red-500 bg-red-50/30' : formData.number ? 'border-green-500 bg-green-50/30' : 'border-green-300'} bg-white ring-2 ring-green-500/10 rounded-xl focus:ring-green-500 focus:border-green-500 outline-none font-bold text-center`, inputMode: "numeric", disabled: isFormLocked || isSubmitting, autoComplete: "off" }), validationErrors.number && e("p", { className: "text-red-500 text-xs mt-1 pl-1" }, validationErrors.number)),
+                                    e("div", {className: "col-span-3"}, e("label", { className: "text-[10px] font-bold text-gray-400 uppercase pl-1 mb-1 block" }, "Cidade"), e("input", { name: "city", value: formData.city, onChange: handleChange, className: `w-full p-3.5 bg-white border ${validationErrors.city ? 'border-red-500 bg-red-50/30' : formData.city ? 'border-green-500 bg-green-50/30' : 'border-slate-200'} rounded-xl text-slate-600 text-sm font-medium focus:border-green-500 outline-none`, placeholder: "Cidade/UF", disabled: isFormLocked || isSubmitting, autoComplete: "address-level2", autoCorrect: "off", spellCheck: "false" }), validationErrors.city && e("p", { className: "text-red-500 text-xs mt-1 pl-1" }, validationErrors.city))
                                 )
                             )
                         ),
@@ -418,10 +465,9 @@
                                     e("div", { className: "w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md flex-shrink-0 text-white" }, e(Icons.Check, {className: "w-4 h-4"})),
                                     e("div", {className: "flex-1 py-1"}, e("div", { className: "font-bold text-slate-800 text-sm flex items-center gap-1.5" }, "PIX"), e("div", { className: "text-green-700 font-extrabold text-xl mt-0.5 tracking-tight" }, "R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',',')))
                                 ),
-                                e("button", { ref: submitButtonRef, disabled: loading || isFormLocked || isSubmitting, type: "submit", className: `w-full mt-6 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-xl shadow-green-500/30 ${loading || isFormLocked || isSubmitting ? 'opacity-80 grayscale cursor-not-allowed' : 'hover:shadow-green-500/50 hover:-translate-y-0.5'} btn-tactile min-h-[56px]`, "aria-busy": loading }, 
+                                e("button", { ref: submitButtonRef, disabled: loading || isFormLocked || isSubmitting, type: "submit", className: `w-full mt-6 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-xl shadow-green-500/30 ${loading || isFormLocked || isSubmitting ? 'opacity-80 grayscale cursor-not-allowed' : (!isFormValid ? 'opacity-60 cursor-not-allowed grayscale' : 'hover:shadow-green-500/50 hover:-translate-y-0.5')} btn-tactile min-h-[56px]`, "aria-busy": loading }, 
                                     loading ? e("span", {className: "flex items-center gap-2"}, e("div", { className: "spinner-mobile" }), "Processando...") : e("span", {className: "flex items-center gap-2"}, "FINALIZAR COM DESCONTO", e("svg", { className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3" }, e("polyline", {points: "9 18 15 12 9 6"})))
                                 ),
-                                e("div", {className: "text-center mt-3.5"}, e("span", { className: "text-[11px] text-slate-400 font-normal flex justify-center items-center gap-1.5" }, "Ambiente criptografado e 100% seguro."))
                             )
                         )
                     ),
@@ -432,10 +478,9 @@
                         disabled: loading || isFormLocked || isSubmitting, 
                         type: "button", 
                         form: "checkout-form",
-                        className: `w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-xl shadow-green-500/30 ${loading || isFormLocked || isSubmitting ? 'opacity-80 grayscale cursor-not-allowed' : 'hover:shadow-green-500/50'} btn-tactile min-h-[56px]`, "aria-busy": loading }, 
+                        className: `w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-xl shadow-green-500/30 ${loading || isFormLocked || isSubmitting ? 'opacity-80 grayscale cursor-not-allowed' : (!isFormValid ? 'opacity-60 cursor-not-allowed grayscale' : 'hover:shadow-green-500/50')} btn-tactile min-h-[56px]`, "aria-busy": loading }, 
                         loading ? e("span", {className: "flex items-center gap-2"}, e("div", { className: "spinner-mobile" }), "Processando...") : e("span", {className: "flex items-center gap-2"}, "FINALIZAR COM DESCONTO", e("svg", { className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3" }, e("polyline", {points: "9 18 15 12 9 6"})))
                     ),
-                    e("div", {className: "text-center mt-3.5"}, e("span", { className: "text-[11px] text-slate-400 font-normal flex justify-center items-center gap-1.5" }, "Ambiente criptografado e 100% seguro."))
                 ),
                 e("div", { className: "h-24 md:h-16 lg:h-20 flex flex-col items-center justify-center gap-2" },
                     e("div", { className: "flex justify-center items-center gap-6" },
@@ -461,9 +506,11 @@
             );
         }
 
-        function PixScreen({ customerData, pixCode, qrCodeUrl }) {
+        function PixScreen({ customerData, pixCode, qrCodeUrl, onBack }) {
             const [loadingState, setLoadingState] = useState(0); 
             const [copied, setCopied] = useState(false);
+            const [textCopied, setTextCopied] = useState(false);
+            const [expiresIn, setExpiresIn] = useState(900);
             useEffect(() => { window.__ckPixShownAt = Date.now(); try { if(window.__ckTrack) window.__ckTrack.pixShown(); } catch(_){} }, []);
             const [keyboardClosed, setKeyboardClosed] = useState(false);
             
@@ -498,6 +545,12 @@
                 
                 return () => { clearTimeout(step1); clearTimeout(step2); clearTimeout(step3); };
             }, [transactionId]);
+
+            useEffect(() => {
+                if (loadingState < 3) return;
+                const timer = setInterval(() => { setExpiresIn(prev => prev > 0 ? prev - 1 : 0); }, 1000);
+                return () => clearInterval(timer);
+            }, [loadingState]);
 
             const copyPix = async () => { 
                 // ⭐️ RASTREAMENTO DE CÓPIA DO PIX ⭐️
@@ -538,43 +591,86 @@
                 e("p", { className: "text-sm text-slate-500 mt-4 font-medium" }, "Por favor, não feche esta página.")
             );
             
-            return e("div", { className: "min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 font-sans py-10 pb-safe-bottom safe-area-padding" },
-                e("div", { className: `bg-white w-full max-w-[480px] lg:max-w-5xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.08)] p-6 sm:p-8 lg:p-10 border border-slate-100 transition-all duration-500 ${keyboardClosed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}` },
-                    e("div", { className: "grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-start" },
-                        e("div", {className: "lg:col-span-6 lg:row-start-1"},
-                            e("div", {className: "text-center lg:text-left mb-6"}, 
-                                e("div", { className: "w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto lg:mx-0 mb-4 shadow-sm" }, e(Icons.Check, {className: "w-8 h-8"})),
-                                e("h1", { className: "text-2xl font-black text-slate-800 leading-tight mb-2 tracking-tight" }, "Quase lá, " + firstName + "!"),
-                                e("p", {className: "text-sm text-slate-500"}, "Finalize o pagamento para garantir a oferta.")
+            return e("div", { className: "min-h-screen bg-slate-100 font-sans pb-safe-bottom safe-area-padding" },
+                e("div", { className: `w-full max-w-[480px] mx-auto transition-all duration-500 ${keyboardClosed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}` },
+                    e("div", {className: "space-y-4"},
+                        // Topo: Quase lá + Timer com barra (full width)
+                        e("div", {className: "bg-white overflow-hidden shadow-sm border-b border-slate-200/60"},
+                            // Barra de progresso verde
+                            e("div", {className: "h-1.5 bg-slate-100"},
+                                e("div", {style: {width: Math.max(0, Math.round(expiresIn / 900 * 100)) + "%", background: "#16a34a", height: "100%", borderRadius: "0 9999px 9999px 0", transition: "width 1s linear"}})
                             ),
-                            e("div", { className: "bg-green-50/80 border border-green-100 text-green-700 font-bold text-xs py-3 rounded-lg text-center mb-6 uppercase tracking-wide shadow-sm flex items-center justify-center gap-2" }, e("svg", { width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" }, e("rect", { x: "3", y: "11", width: "18", height: "11", rx: "2", ry: "2" }), e("path", { d: "M7 11V7a5 5 0 0 1 10 0v4" })), "Pedido Reservado com Sucesso")
-                        ),
-                        e("div", {className: "lg:col-span-6 lg:col-start-7 lg:row-start-1 lg:row-span-2"},
-                            effectiveQrUrl && e("div", {className: "hidden lg:flex justify-center mb-6"}, e("div", {className: "bg-white p-2 border-2 border-slate-100 rounded-xl shadow-sm"}, e("img", { src: effectiveQrUrl, className: "w-48 h-48 object-contain rounded-lg", alt: "QR Code PIX", loading: "eager", onError: (e) => e.target.style.display = 'none' }))),
-                            e("div", {className: "mb-8"},
-                                e("div", {className: "flex justify-between items-center mb-6 px-2"}, 
-                                    ['Copiar', 'App Banco', 'Colar', 'Pagar'].map((step, index) => 
-                                        e("div", {key: index, className: "flex flex-col items-center group"}, e("div", { className: `w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-all ${index === 0 ? 'bg-green-600 text-white shadow-lg shadow-green-500/30 scale-110' : 'bg-slate-100 text-slate-400'}` }, e("span", {className: "font-bold text-sm"}, index + 1)), e("span", { className: `text-[10px] font-bold uppercase tracking-wide ${index === 0 ? 'text-green-700' : 'text-slate-300'}` }, step))
+                            e("div", {className: "p-5"},
+                                e("div", {style: {display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px"}},
+                                    e("div", {style: {width: "36px", height: "36px", borderRadius: "50%", background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0}},
+                                        e("svg", {width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "#16a34a", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, e("path", {d: "M12 6v6l4 2"}), e("circle", {cx: "12", cy: "12", r: "10"}))
+                                    ),
+                                    e("div", null,
+                                        e("p", {style: {fontSize: "11px", color: "#94a3b8", marginBottom: "1px"}}, "Expira em"),
+                                        e("p", {style: {fontSize: "18px", fontWeight: "800", color: "#16a34a", fontVariantNumeric: "tabular-nums", lineHeight: "1.2"}}, String(Math.floor(expiresIn / 60)).padStart(2, '0') + ":" + String(expiresIn % 60).padStart(2, '0'))
                                     )
                                 ),
-                                e("div", { onClick: copyPix, className: `relative rounded-xl border-2 border-dashed p-4 transition-colors group cursor-pointer ${copied ? 'bg-green-50 border-green-400' : 'bg-slate-50 border-slate-300 hover:border-green-400'}` }, 
-                                    e("div", { className: "absolute -top-3 left-4 bg-white px-2 text-xs font-bold text-slate-500 uppercase tracking-wide" }, "Código PIX"),
-                                    copied
-                                        ? e("div", { className: "w-full text-green-600 text-xs font-bold text-center py-1 mb-4 mt-1 flex items-center justify-center gap-1.5" }, e("svg", { className: "w-4 h-4", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "20 6 9 17 4 12"})), "Código copiado!")
-                                        : e("div", { className: "w-full text-slate-400 text-xs font-mono break-all line-clamp-2 select-all mb-4 mt-1 opacity-70" }, effectivePixCode),
-                                    e("button", { onClick: copyPix, className: `w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] min-h-[52px] ${copied ? 'bg-green-700' : 'bg-green-500 hover:bg-green-600 shadow-green-500-hover'} btn-tactile` }, copied ? e(React.Fragment, null, e("svg", { key: "icon-cpy", className: "w-5 h-5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "20 6 9 17 4 12"})), "CÓDIGO COPIADO!") : e(React.Fragment, null, e(Icons.Copy, {key: "icon-nocpy", className: "w-5 h-5"}), "CLIQUE PARA COPIAR"))
-                                ),
-                                e("div", {className: "flex justify-between items-center mt-4 px-2"}, e("span", {className: "text-sm text-slate-500 font-medium"}, "Valor Total:"), e("span", {className: "text-xl font-black text-slate-800"}, "R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))),
-                                e("div", { className: "bg-amber-50 border border-amber-100 text-amber-700 font-bold text-sm py-3 rounded-lg text-center mt-6 shadow-sm flex items-center justify-center gap-2" }, e("div", { className: "w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" }), "Aguardando confirmação do pagamento..."),
-                                e("p", {className: "text-[10px] text-slate-400 text-center mt-6 font-mono"}, "ID: " + transactionId)
+                                e("h2", {style: {fontSize: "18px", fontWeight: "800", color: "#1e293b", textAlign: "center", marginBottom: "4px"}}, "Quase lá, " + firstName + "!"),
+                                e("p", {style: {fontSize: "14px", color: "#94a3b8", textAlign: "center"}}, "Finalize o pagamento para garantir a oferta.")
                             )
                         ),
-                        e("div", {className: "lg:col-span-6 lg:row-start-2 lg:col-start-1"},
-                            e("div", {className: "bg-slate-50 border border-slate-100 rounded-xl p-5"}, 
-                                e("h4", { className: "text-xs font-bold text-slate-400 uppercase mb-3 tracking-wide" }, "Como Pagar:"),
-                                ["Abra o aplicativo do seu banco", "Selecione PIX > Pix Copia e Cola", "Cole o código copiado", "Confirme os dados e o valor"].map((text, idx) => e("div", {key: idx, className: "flex gap-3 items-start mb-2 last:mb-0"}, e("div", { className: "bg-white border border-slate-200 text-green-600 w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold mt-0.5 shadow-sm" }, idx + 1), e("p", {className: "text-sm text-slate-600 leading-snug font-medium"}, text)))
+                        // Cards com padding lateral
+                        e("div", {className: "px-4 space-y-4"},
+                        // Card 2: Pix Copia e Cola
+                        e("div", {className: "bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60"},
+                            e("div", {className: "flex items-center gap-3 mb-4"},
+                                e("div", {className: "w-10 h-10 flex items-center justify-center"},
+                                    e("svg", {width: "36", height: "36", viewBox: "0 0 512 512", fill: "none"},
+                                        e("path", {d: "M352.6 297.5l-68.4-68.4c-4.5-4.5-4.5-11.8 0-16.3l68.4-68.4c4.5-4.5 11.8-4.5 16.3 0l68.4 68.4c4.5 4.5 4.5 11.8 0 16.3l-68.4 68.4c-4.5 4.5-11.8 4.5-16.3 0z", fill: "#32bcad"}),
+                                        e("path", {d: "M143.1 297.5l-68.4-68.4c-4.5-4.5-4.5-11.8 0-16.3l68.4-68.4c4.5-4.5 11.8-4.5 16.3 0l68.4 68.4c4.5 4.5 4.5 11.8 0 16.3l-68.4 68.4c-4.5 4.5-11.8 4.5-16.3 0z", fill: "#32bcad"}),
+                                        e("path", {d: "M247.9 402.9l-68.4-68.4c-4.5-4.5-4.5-11.8 0-16.3l68.4-68.4c4.5-4.5 11.8-4.5 16.3 0l68.4 68.4c4.5 4.5 4.5 11.8 0 16.3l-68.4 68.4c-4.5 4.5-11.8 4.5-16.3 0z", fill: "#32bcad"}),
+                                        e("path", {d: "M247.9 192.1l-68.4-68.4c-4.5-4.5-4.5-11.8 0-16.3l68.4-68.4c4.5-4.5 11.8-4.5 16.3 0l68.4 68.4c4.5 4.5 4.5 11.8 0 16.3l-68.4 68.4c-4.5 4.5-11.8 4.5-16.3 0z", fill: "#32bcad"})
+                                    )
+                                ),
+                                e("div", null,
+                                    e("h3", {className: "text-[15px] font-bold text-slate-800"}, "Pix Copia e Cola"),
+                                    e("p", {className: "text-xs text-slate-400"}, "Copie o codigo abaixo")
+                                )
+                            ),
+                            e("div", {className: "bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200/60 cursor-pointer", onClick: function(ev) { ev.stopPropagation(); window.safeCopyToClipboard(effectivePixCode).then(function(){ setTextCopied(true); setTimeout(function(){ setTextCopied(false); }, 2000); }).catch(function(){}); }},
+                                textCopied
+                                    ? e("p", {className: "text-sm font-bold text-green-600 text-center py-2 flex items-center justify-center gap-2"}, e("svg", {width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round"}, e("polyline", {points: "20 6 9 17 4 12"})), "Codigo copiado!")
+                                    : e("p", {className: "text-[11px] text-slate-500 break-all font-mono leading-relaxed select-all"}, effectivePixCode)
+                            ),
+                            e("button", { onClick: function(ev) { ev.preventDefault(); copyPix(); }, className: "w-full py-3.5 rounded-xl font-bold text-white shadow-md flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] min-h-[48px] bg-green-600 hover:bg-green-700 btn-tactile" },
+                                copied
+                                    ? e(React.Fragment, null, e("svg", {width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round"}, e("polyline", {points: "20 6 9 17 4 12"})), "Codigo copiado!")
+                                    : e(React.Fragment, null, e("svg", {width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, e("rect", {width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2"}), e("path", {d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"})), "Copiar codigo PIX")
+                            ),
+                            e("div", {className: "flex justify-between items-center mt-4 pt-4 border-t border-slate-100"},
+                                e("span", {className: "text-sm text-slate-500 font-medium"}, "Valor Total:"),
+                                e("span", {className: "text-xl font-extrabold text-slate-800"}, "R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))
+                            ),
+                        ),
+                        // Card 3: Como pagar
+                        e("div", {className: "bg-white rounded-2xl p-5 shadow-sm border border-slate-200/60"},
+                            e("h3", {className: "text-sm font-bold text-slate-800 mb-4"}, "Como pagar"),
+                            e("div", null,
+                                [{title: "Copie o codigo", desc: "Clique no botao acima para copiar o codigo PIX."},
+                                 {title: "Abra o app do banco", desc: "Acesse o aplicativo do seu banco ou fintech."},
+                                 {title: "Pix Copia e Cola", desc: "Escolha a opcao PIX e cole o codigo copiado."},
+                                 {title: "Confirme o pagamento", desc: "Revise os dados e confirme. A aprovacao e automatica."}
+                                ].map(function(item, idx) { return e("div", {key: idx, className: "flex", style: {gap: "14px"}},
+                                    e("div", {className: "flex flex-col items-center"},
+                                        e("div", {style: {width: "28px", height: "28px", borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0}},
+                                            e("span", {style: {fontSize: "11px", fontWeight: "bold", color: "white"}}, idx + 1)
+                                        ),
+                                        idx < 3 ? e("div", {style: {width: "1px", flex: 1, background: "#e2e8f0", marginTop: "4px"}}) : null
+                                    ),
+                                    e("div", {style: {flex: 1, paddingBottom: idx < 3 ? "20px" : "4px"}},
+                                        e("p", {className: "text-sm font-semibold text-slate-800"}, item.title),
+                                        e("p", {className: "text-xs text-slate-400", style: {marginTop: "2px", lineHeight: "1.5"}}, item.desc)
+                                    )
+                                ); })
                             )
-                        )
+                        ),
+                        e("p", {className: "text-[10px] text-slate-400 text-center mt-2 font-mono"}, "ID: " + transactionId)
+                        ) // fecha div px-4
                     )
                 )
             );
@@ -698,7 +794,21 @@
             }, []);
 
             
-            return screen === 'checkout' ? e(CheckoutScreen, { onSuccess: (data) => { setCustomerData(data); setScreen('pix'); } }) : e(PixScreen, { customerData: customerData, pixCode: pixConfig.pixCode, qrCodeUrl: pixConfig.qrCodeUrl });
+            // Gerenciar history para o botão voltar do browser
+            useEffect(() => {
+                if (screen === 'pix') {
+                    window.history.pushState({ screen: 'pix' }, '', window.location.pathname);
+                }
+                const handlePopState = (ev) => {
+                    if (screen === 'pix') {
+                        setScreen('checkout');
+                    }
+                };
+                window.addEventListener('popstate', handlePopState);
+                return () => window.removeEventListener('popstate', handlePopState);
+            }, [screen]);
+
+            return screen === 'checkout' ? e(CheckoutScreen, { onSuccess: (data) => { setCustomerData(data); setScreen('pix'); } }) : e(PixScreen, { customerData: customerData, pixCode: pixConfig.pixCode, qrCodeUrl: pixConfig.qrCodeUrl, onBack: () => setScreen('checkout') });
         }
         
         const rootElement = document.getElementById('checkout-root');
@@ -724,7 +834,7 @@
                             target.innerHTML = '' +
                                 '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;padding:24px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">' +
                                 '<div style="font-weight:800;font-size:18px;color:#0f172a;margin-bottom:8px;">Não foi possível iniciar o checkout</div>' +
-                                '<div style="font-size:13px;color:#475569;max-width:420px;line-height:1.4;">Tente recarregar a página. Se estiver no navegador do Instagram/Facebook, às vezes ajuda abrir no Chrome/Safari.</div>' +
+                                '<div style="font-size:13px;color:#475569;max-width:420px;line-height:1.4;">Tente recarregar a página. Se estiver no navegador do TikTok/Instagram, às vezes ajuda abrir no Chrome/Safari.</div>' +
                                 '<button style="margin-top:16px;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px 18px;font-weight:800;font-size:14px;min-height:44px;width:100%;max-width:320px;cursor:pointer;" onclick="location.reload()">Recarregar</button>' +
                                 '</div>';
                         }

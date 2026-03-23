@@ -1,6 +1,6 @@
 // Cloudflare Pages Function: POST /api/order-create
 // Purpose: criar um pedido interno mínimo (nome + telefone) para uso operacional no admin.
-// Não envia esses dados ao Facebook. Não é um 'log paralelo': é o registro interno do pedido.
+// Não envia esses dados ao TikTok. Não é um 'log paralelo': é o registro interno do pedido.
 //
 // Variáveis de ambiente necessárias:
 //   PIX_STORE          — KV binding
