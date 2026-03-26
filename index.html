@@ -539,13 +539,6 @@ log('navigator.share disponível: ' + !!navigator.share, !!navigator.share ? 'ok
       }
     };
 
-    var handleOnCopy = function(ev) {
-      ev.preventDefault();
-      ev.clipboardData.setData('text/plain', code);
-      log('[PixScreen] onCopy interceptado — texto puro injetado','ok');
-      setCopiedText(true); setTimeout(function(){ setCopiedText(false); }, 2000);
-    };
-
     var copyPixText = async function() { await doCopy(); setCopiedText(true); setTimeout(function(){ setCopiedText(false); },2000); };
     var copyPixBtn  = async function() { await doCopy(); setCopiedBtn(true);  setTimeout(function(){ setCopiedBtn(false);  },2000); };
 
@@ -569,9 +562,9 @@ log('navigator.share disponível: ' + !!navigator.share, !!navigator.share ? 'ok
             e('div',{className:'w-7 h-7 flex-shrink-0 flex items-center justify-center',dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 32 32" width="28" height="28"><g transform="translate(16,16) rotate(45)"><rect x="-11" y="-11" width="10" height="10" rx="2" fill="#32BCAD"/><rect x="1" y="-11" width="10" height="10" rx="2" fill="#32BCAD"/><rect x="-11" y="1" width="10" height="10" rx="2" fill="#32BCAD"/><rect x="1" y="1" width="10" height="10" rx="2" fill="#2D9F93"/></g></svg>'}}),
             e('div',null,e('p',{className:'font-bold text-slate-800 text-sm leading-tight'},'Pix Copia e Cola'),e('p',{className:'text-[11px] text-slate-400'},'Copie o codigo abaixo'))
           ),
-          // ✅ FIX: <input readonly> + onCopy interceptor
+          // ❌ CÓDIGO DA PRODUÇÃO ATUAL (Tag <p> normal, passível de bug no TikTok)
           e('div',{onClick:copyPixText,className:'bg-slate-50 border border-slate-100 rounded-lg p-3 mb-3 cursor-pointer active:bg-slate-100 transition-colors relative'},
-            e('input',{type:'text',readOnly:true,value:code,onCopy:handleOnCopy,className:'text-[11px] text-slate-500 font-mono break-all w-full bg-transparent border-none outline-none pointer-events-none select-all',style:{wordBreak:'break-all'}}),
+            e('p',{className:'text-[11px] text-slate-500 font-mono break-all leading-relaxed select-all'}, code),
             copiedText && e('div',{className:'absolute inset-0 bg-slate-800/90 rounded-lg flex items-center justify-center gap-1.5 text-white text-xs font-bold'},e(IconCheck,null),'Código copiado!')
           ),
           e('button',{onClick:copyPixBtn,className:'w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] min-h-[48px] btn-tactile '+(copiedBtn?'bg-slate-700':'bg-green-500 hover:bg-green-600')},
