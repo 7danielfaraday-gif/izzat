@@ -43,8 +43,6 @@
     function generateEventId() {
         return 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
-    window.generateEventId = generateEventId;
-    // trackViaZaraz será definida mais abaixo (Browser Pixel + CAPI)
 
     function getExternalId() {
         let eid = localStorage.getItem('user_external_id');
@@ -107,87 +105,71 @@
         };
     }
 
-    // --- FUNÇÃO DE DISPARO HÍBRIDA (Browser Pixel + CAPI) ---
-    // Leitura do cookie _ttp (TikTok Pixel cookie)
-    function getTTP() {
-        return (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined;
-    }
-
-    function getTikTokEventSourceUrl() {
+    // --- FUNÇÃO DE DISPARO HÍBRIDA (ZARAZ + MANUAL + BEACON) ---
+    function trackViaZaraz(event, data = {}, useBeacon = false) {
         try {
-            var u = new URL(window.location.href);
-            u.protocol = 'https:';
-            u.host = 'lojaizzat.shop';
-            return u.toString();
-        } catch(_) { return 'https://lojaizzat.shop/'; }
-    }
-
-    async function sendCAPI(event, eventId, properties, user) {
-        try {
-            await fetch('/api/tiktok-events', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: event, event_id: eventId, properties: properties, user: user })
-            });
-        } catch(e) {}
-    }
-
-    function trackViaZaraz(event, data = {}) {
-        if (window.trackPixel) {
-            window.trackPixel(event, data);
-            return;
-        }
-        if (window.__TEST_MODE) { console.log('[TEST_MODE] Evento bloqueado:', event, data); return; }
-        try {
+            // Tenta recuperar dados de usuário salvos (Sessão anterior persistente)
             const savedEmail = localStorage.getItem('user_hashed_email');
             const savedPhone = localStorage.getItem('user_hashed_phone');
 
-            let payload = {
-                ...data,
+            let payload = { 
+                ...data, 
                 ...getContext(),
                 external_id: getExternalId(),
                 ttclid: getTTCLID(),
                 ...getStoredUTMs()
             };
 
+            // Campos compatíveis com Events API (ajuda em matching/atribuição)
             payload.event_time = payload.timestamp || Math.floor(Date.now() / 1000);
-            payload.event_source_url = getTikTokEventSourceUrl();
+            payload.event_source_url = payload.url || window.location.href;
 
+            // Injeta identificadores recuperados se existirem
             if (savedEmail && !payload.email) payload.email = savedEmail;
             if (savedPhone && !payload.phone) payload.phone = savedPhone;
 
-            var eventId = payload.event_id || window.generateEventId();
-
-            // 1. Browser Pixel (com event_id para deduplicação)
+            // 1. DISPARO MANUAL (Browser-Side)
             if (window.ttq && typeof window.ttq.track === 'function') {
                 if (event !== 'PageView') {
-                    try {
-                        var bp = Object.assign({}, payload);
-                        delete bp.event_id;
-                        window.ttq.track(event, bp, { event_id: eventId });
-                    } catch(e) {}
+                    window.ttq.track(event, payload);
                 }
             }
 
-            // 2. CAPI server-side (dupla camada — mesmo event_id para deduplicação)
-            sendCAPI(
-                event,
-                eventId,
-                { event_source_url: getTikTokEventSourceUrl() },
-                {
-                    email:       payload.email || undefined,
-                    phone_number: payload.phone || undefined,
-                    external_id: getExternalId(),
-                    ttclid:      getTTCLID(),
-                    ttp:         getTTP()
-                }
-            );
-
+            // 2. DISPARO ZARAZ (Server-Side)
+            window.__zarazQueue = window.__zarazQueue || [];
+            if (window.zaraz && window.zaraz.track) {
+                window.zaraz.track(event, payload);
+            } else {
+                window.__zarazQueue.push({ event: event, payload: payload });
+            }
+            
+            // 3. BEACON FALLBACK (A Prova de Falhas para Mobile)
+            // Se o Zaraz falhar ou a página fechar, enviamos um sinal direto se tiver endpoint configurado
+            // (Nota: Isso é uma implementação avançada, mantida simples aqui para não quebrar sem backend próprio)
+            
         } catch (error) {
             console.error('Tracking Error:', error);
         }
     }
-    window.trackViaZaraz = trackViaZaraz;
+
+
+
+    // Garante envio server-side assim que o Zaraz estiver disponível (muito comum no TikTok In-App)
+    (function zarazQueueFlusher(){
+        var tries = 0;
+        var timer = setInterval(function(){
+            tries++;
+            if (window.zaraz && window.zaraz.track && window.__zarazQueue && window.__zarazQueue.length) {
+                var q = window.__zarazQueue.splice(0, window.__zarazQueue.length);
+                for (var i = 0; i < q.length; i++) {
+                    try { window.zaraz.track(q[i].event, q[i].payload); } catch(e) {}
+                }
+            }
+            if (tries > 60 || ((window.zaraz && window.zaraz.track) && (!window.__zarazQueue || window.__zarazQueue.length === 0))) {
+                clearInterval(timer);
+            }
+        }, 500);
+    })();
 
     // --- TRIGGERS ---
 
@@ -201,17 +183,25 @@
         saveUTMs();
     });
 
-    // 2. ViewContent — disparado exclusivamente pelo checkout.app.js (React)
-    // para evitar duplicidade: LP + checkout.app ambos acionavam ViewContent com event_ids diferentes.
-    // O checkout.app.js já tem deduplicação por sessionStorage (last_vc_id).
+    // 2. ViewContent Inteligente
+    var viewContentFired = false;
+    function fireViewContent() {
+        if (viewContentFired) return;
+        viewContentFired = true;
+
+        trackViaZaraz('ViewContent', {
+            ...PRODUCT_CONTENT,
+            event_id: generateEventId()
+        });
+    }
+
+    setTimeout(fireViewContent, 3500); 
+    window.addEventListener('scroll', fireViewContent, { once: true, passive: true });
+    window.addEventListener('touchmove', fireViewContent, { once: true, passive: true });
 
     // 3. CTA Comprar Agora (WebView-safe: não bloqueia navegação)
     // Monta o link com parâmetros (ttclid/utm/eid) ANTES do clique, evitando redirect com delay.
     window.buildCheckoutUrl = function(baseHref) {
-        // Bloqueia javascript:void(0) ou rotas inválidas vindas do navegador/pontes de apps
-        if (!baseHref || typeof baseHref !== 'string' || baseHref.indexOf('javascript') !== -1) {
-            baseHref = '/c';
-        }
         try {
             const urlObj = new URL(baseHref, window.location.origin);
 
@@ -256,19 +246,15 @@
             btn.href = window.buildCheckoutUrl(btn.getAttribute('href') || btn.href);
         } catch (e) {}
 
-        // Setup SPA Checkout instead of redirecting
-        btn.addEventListener('click', (e) => {
-            if (typeof window.spaOpenCheckout === 'function') {
-                e.preventDefault();
-                window.spaOpenCheckout(btn.getAttribute('href') || btn.href);
-            }
+        // Tracking sem bloquear a navegação
+        btn.addEventListener('click', () => {
             try {
                 trackViaZaraz('AddToCart', {
                     ...PRODUCT_CONTENT,
                     event_id: generateEventId()
                 }, true);
-            } catch (err) {}
-        });
+            } catch (e) {}
+        }, { passive: true });
     })();
     // ==================================================
     // 4. MICRO-CONVERSÕES (NOVO: ALIMENTA O ALGORITMO)
@@ -308,10 +294,10 @@
   }
 
   const variantLinks = {
-    'preto': '/c/',
-    'rosa-pink': '/c/',
-    'roxo-claro': '/c/',
-    'rosa-claro': '/c/'
+    'preto': '/checkout/',
+    'rosa-pink': '/checkout/',
+    'roxo-claro': '/checkout/',
+    'rosa-claro': '/checkout/'
   };
   const buyBtn = document.querySelector('.buy-btn');
 
@@ -323,11 +309,11 @@
       if (!countdownEl) return;
       
       // Tenta recuperar o tempo do localStorage ou usa 300 (5 min)
-      let savedTime = localStorage.getItem('offer_timer_v4');
-      let timeLeft = savedTime ? parseInt(savedTime) : 900;
+      let savedTime = localStorage.getItem('offer_timer_v2');
+      let timeLeft = savedTime ? parseInt(savedTime) : 300;
       
       // Se o tempo acabou ou é inválido, reseta
-      if(isNaN(timeLeft) || timeLeft <= 0) timeLeft = 900;
+      if(isNaN(timeLeft) || timeLeft <= 0) timeLeft = 300;
 
       const updateDisplay = () => {
           const minutes = Math.floor(timeLeft / 60);
@@ -340,11 +326,11 @@
       const timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
           // Quando acaba, reinicia discretamente para manter a pressão (loop infinito sutil)
-          timeLeft = 900; 
+          timeLeft = 300; 
         } else {
           timeLeft--;
         }
-        localStorage.setItem('offer_timer_v4', timeLeft);
+        localStorage.setItem('offer_timer_v2', timeLeft);
         updateDisplay();
       }, 1000);
     }
@@ -439,7 +425,7 @@
         const thumbImg = document.createElement('img');
         const imgName = 'thumb_' + padZero(i) + '.webp'; 
         
-        thumbImg.src = '/assets/img/' + imgName;
+        thumbImg.src = 'assets/img/' + imgName;
         thumbImg.alt = `Miniatura ${i}`;
         thumbImg.loading = 'lazy';
         
@@ -456,7 +442,7 @@
         // FIX INP: Manipulação de DOM pesada movida para requestAnimationFrame
         requestAnimationFrame(() => {
           const imgName = padZero(currentImageIndex) + '.webp';
-          mainImage.src = '/assets/img/' + imgName;
+          mainImage.src = 'assets/img/' + imgName;
           imageCounter.textContent = `${currentImageIndex}/${totalImages}`;
 
           imageDots.querySelectorAll('.dot').forEach((d, i) =>
@@ -482,8 +468,7 @@
         const color = swatch.dataset.color;
         
         if (variantLinks[color]) {
-          buyBtn.href = "javascript:void(0)";
-          buyBtn.onclick = function() { if(window.spaOpenCheckout) window.spaOpenCheckout(); };
+          buyBtn.href = (window.buildCheckoutUrl ? window.buildCheckoutUrl(variantLinks[color]) : variantLinks[color]);
         }
         
         currentVariant = color;
@@ -495,10 +480,7 @@
     const defaultSwatch = document.querySelector(`.color-swatch[data-color="${currentVariant}"]`);
     if (defaultSwatch) {
         defaultSwatch.classList.add('selected');
-        if (variantLinks[currentVariant]) {
-            buyBtn.href = "javascript:void(0)";
-            buyBtn.onclick = function() { if(window.spaOpenCheckout) window.spaOpenCheckout(); };
-        }
+        if (variantLinks[currentVariant]) buyBtn.href = (window.buildCheckoutUrl ? window.buildCheckoutUrl(variantLinks[currentVariant]) : variantLinks[currentVariant]);
     }
 
     createImageDots();
@@ -590,13 +572,10 @@
         }, 4000);
     }
 
-    // Show popup only once per session, after 15 seconds
-    if (!sessionStorage.getItem('popup_shown')) {
-        setTimeout(() => {
-            showSalesPopup();
-            sessionStorage.setItem('popup_shown', '1');
-        }, 15000);
-    }
+    setTimeout(() => {
+        showSalesPopup();
+        setInterval(showSalesPopup, 10000); 
+    }, 3000);
     
   });
 

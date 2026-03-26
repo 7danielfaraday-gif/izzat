@@ -23,8 +23,7 @@
     const body = JSON.stringify({ sid: getSid(), path: location.pathname, ts: Date.now() });
     try {
       if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: 'application/json' });
-        navigator.sendBeacon('/api/metrics/ping', blob);
+        navigator.sendBeacon('/api/metrics/ping', body);
         return;
       }
     } catch {
