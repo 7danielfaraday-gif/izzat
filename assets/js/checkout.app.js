@@ -16,13 +16,13 @@ document.addEventListener('DOMContentLoaded', function(){
  const e = React.createElement; 
  
  const DEFAULT_CODIGO_PIX_COPIA_COLA = "00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984";
- const DEFAULT_URL_IMAGEM_QRCODE = "/assets/img/qrcode.webp"; // pode ser sobrescrito via painel (PHP)
+ const DEFAULT_URL_IMAGEM_QRCODE = "assets/img/qrcode.webp"; // pode ser sobrescrito via painel (PHP)
  
  const PRODUCT_INFO = { 
  name: "Fritadeira Elétrica Forno Oven 12L Mondial AFON-12L-BI", 
  originalPrice: 399.90, 
  price: 197.99, 
- image: "/assets/img/01.webp", 
+ image: "assets/img/01.webp", 
  id: "AFON-12L-BI" 
  };
 
@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function(){
  }, className: `flex items-center text-slate-400 hover:text-slate-600 transition-colors p-3 -ml-3 btn-tactile ${isFormLocked ? 'opacity-50 cursor-not-allowed' : ''}`, "aria-label": "Voltar", disabled: isFormLocked || isSubmitting }, 
  e("svg", { className: "w-6 h-6", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, e("polyline", {points: "15 18 9 12 15 6"}))
  ),
- e("img", { src: "/assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto object-contain" }),
+ e("img", { src: "assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto object-contain" }),
  e("div", {className: "w-12"})
  ),
  e("div", { className: "max-w-[480px] mx-auto p-4 pt-6 space-y-4 " },
