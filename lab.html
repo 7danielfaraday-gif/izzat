@@ -2926,8 +2926,8 @@
                 }
             });
 
-            // Deep link: se a URL já é /c/ OU estamos no lab, abre checkout automaticamente
-            if ((window.location.pathname.indexOf('/c') === 0 && window.location.pathname !== '/') || window.__LAB_MODE) {
+            // Deep link: se a URL já é /c/, abre checkout automaticamente
+            if (window.location.pathname.indexOf('/c') === 0 && window.location.pathname !== '/') {
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', function () { window.spaOpenCheckout(); });
                 } else {
