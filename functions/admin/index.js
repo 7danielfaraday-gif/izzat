@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: GET /admin
-// Serves the PIX Panel behind HTTP Basic Auth.
+// Serves the Admin Panel behind HTTP Basic Auth.
 // Secrets required: PIX_ADMIN_USER, PIX_ADMIN_PASS
 
 function unauthorized() {
@@ -36,7 +36,298 @@ function checkBasicAuth(request, env) {
   return gotUser === user && gotPass === pass;
 }
 
-function html(body, status = 200) {
+function serveHTML() {
+  const page = [
+    '<!doctype html>',
+    '<html lang="pt-br">',
+    '<head>',
+    '<meta charset="utf-8"/>',
+    '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
+    '<title>Izzat - Painel Admin</title>',
+    '<link rel="preconnect" href="https://fonts.googleapis.com"/>',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>',
+    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>',
+    '<script src="https://cdn.tailwindcss.com"><\/script>',
+    '<script>tailwind.config={theme:{extend:{fontFamily:{sans:["Inter","system-ui","sans-serif"]}}}}<\/script>',
+    '<style type="text/css">',
+    'body{font-family:Inter,system-ui,sans-serif}',
+    '.nav-item{transition:all .15s}',
+    '.nav-item:hover{background:rgba(255,255,255,.05)}',
+    '.nav-item.active{background:rgba(34,197,94,.12);color:#22c55e}',
+    '</style>',
+    '</head>',
+    '<body class="bg-gray-50 text-slate-800 min-h-screen">',
+    '',
+    '<!-- Sidebar -->',
+    '<div id="sidebar" class="fixed left-0 top-0 bottom-0 w-60 bg-slate-900 text-slate-300 flex flex-col z-10 hidden lg:flex">',
+    '  <div class="px-5 py-6 border-b border-white/5">',
+    '    <h2 class="text-lg font-extrabold text-white">Izzat</h2>',
+    '    <span class="text-xs text-slate-500">Painel Administrativo</span>',
+    '  </div>',
+    '  <nav class="p-3 flex-1 flex flex-col gap-1">',
+    '    <a class="nav-item active flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer" onclick="showSection(\'dashboard\')">',
+    '      <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    '      Dashboard',
+    '    </a>',
+    '    <a class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer" onclick="showSection(\'orders\')">',
+    '      <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>',
+    '      Pedidos',
+    '    </a>',
+    '    <a class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer" onclick="showSection(\'pix\')">',
+    '      <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+    '      Config PIX',
+    '    </a>',
+    '  </nav>',
+    '</div>',
+    '',
+    '<!-- Mobile header -->',
+    '<div class="lg:hidden bg-slate-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">',
+    '  <h2 class="text-base font-extrabold">Izzat Admin</h2>',
+    '  <div class="flex gap-1">',
+    '    <button onclick="showSection(\'dashboard\')" class="text-xs px-2.5 py-1.5 rounded bg-white/10 font-medium">Dashboard</button>',
+    '    <button onclick="showSection(\'orders\')" class="text-xs px-2.5 py-1.5 rounded bg-white/10 font-medium">Pedidos</button>',
+    '    <button onclick="showSection(\'pix\')" class="text-xs px-2.5 py-1.5 rounded bg-white/10 font-medium">PIX</button>',
+    '  </div>',
+    '</div>',
+    '',
+    '<!-- Main content -->',
+    '<div class="lg:ml-60 p-4 lg:p-8">',
+    '',
+    '  <!-- DASHBOARD -->',
+    '  <div id="sec-dashboard" class="section">',
+    '    <div class="flex justify-between items-center mb-6">',
+    '      <h1 class="text-2xl font-extrabold text-slate-900">Dashboard</h1>',
+    '      <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700"><span class="w-2 h-2 rounded-full bg-green-500"></span>Online</span>',
+    '    </div>',
+    '    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">',
+    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
+    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Visitantes Online</div>',
+    '        <div class="text-3xl font-extrabold text-blue-600" id="onlineNow">0</div>',
+    '      </div>',
+    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
+    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Copias PIX</div>',
+    '        <div class="text-3xl font-extrabold text-green-600" id="pixClicks">0</div>',
+    '      </div>',
+    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
+    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Pedidos Hoje</div>',
+    '        <div class="text-3xl font-extrabold text-slate-800" id="ordersToday">0</div>',
+    '      </div>',
+    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
+    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Total Pedidos</div>',
+    '        <div class="text-3xl font-extrabold text-slate-800" id="ordersTotal">0</div>',
+    '      </div>',
+    '    </div>',
+    '    <div class="bg-white border border-slate-200 rounded-xl">',
+    '      <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">',
+    '        <span class="text-sm font-bold text-slate-800">Pedidos Recentes</span>',
+    '        <button class="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200" onclick="showSection(\'orders\')">Ver todos</button>',
+    '      </div>',
+    '      <div id="recentOrdersBody" class="overflow-x-auto"><div class="text-center py-10 text-slate-400 text-sm">Carregando...</div></div>',
+    '    </div>',
+    '  </div>',
+    '',
+    '  <!-- ORDERS -->',
+    '  <div id="sec-orders" class="section" style="display:none">',
+    '    <div class="flex justify-between items-center mb-6">',
+    '      <h1 class="text-2xl font-extrabold text-slate-900">Pedidos</h1>',
+    '      <div class="flex gap-2">',
+    '        <button class="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200" onclick="loadOrders()">Atualizar</button>',
+    '        <button class="text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100" onclick="clearOrders()">Apagar todos</button>',
+    '      </div>',
+    '    </div>',
+    '    <div class="bg-white border border-slate-200 rounded-xl">',
+    '      <div id="ordersBody" class="overflow-x-auto"><div class="text-center py-10 text-slate-400 text-sm">Carregando...</div></div>',
+    '    </div>',
+    '  </div>',
+    '',
+    '  <!-- PIX CONFIG -->',
+    '  <div id="sec-pix" class="section" style="display:none">',
+    '    <div class="flex justify-between items-center mb-6">',
+    '      <h1 class="text-2xl font-extrabold text-slate-900">Configuracao PIX</h1>',
+    '      <div id="statusMsg" class="text-xs font-medium"></div>',
+    '    </div>',
+    '    <div class="bg-white border border-slate-200 rounded-xl">',
+    '      <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">',
+    '        <span class="text-sm font-bold text-slate-800">PIX Copia e Cola</span>',
+    '        <span class="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">Atualizado: <span id="updated">-</span></span>',
+    '      </div>',
+    '      <div class="p-5">',
+    '        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Codigo PIX</label>',
+    '        <textarea id="pix" class="w-full border border-slate-200 rounded-lg p-3 text-xs font-mono bg-slate-50 focus:border-green-500 focus:ring-2 focus:ring-green-500/10 outline-none min-h-[100px] resize-y" placeholder="Cole aqui o codigo PIX..."></textarea>',
+    '        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 mt-4">QR Code (URL ou caminho)</label>',
+    '        <input id="qr" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 focus:border-green-500 focus:ring-2 focus:ring-green-500/10 outline-none" placeholder="/assets/img/qrcode.webp"/>',
+    '        <label class="flex items-center gap-2 text-sm text-slate-500 font-medium mt-3 cursor-pointer">',
+    '          <input id="disableQr" type="checkbox" class="w-4 h-4 accent-green-600"/>',
+    '          Desativar QR Code',
+    '        </label>',
+    '        <div class="flex gap-2 mt-5">',
+    '          <button id="save" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors">Salvar</button>',
+    '          <button id="reload" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors">Recarregar</button>',
+    '        </div>',
+    '      </div>',
+    '    </div>',
+    '  </div>',
+    '',
+    '</div>',
+    '',
+    '<script>',
+    'var $=function(id){return document.getElementById(id)};',
+    '',
+    'function showSection(name){',
+    '  document.querySelectorAll(".section").forEach(function(s){s.style.display="none"});',
+    '  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active")});',
+    '  var sec=$("sec-"+name);',
+    '  if(sec)sec.style.display="block";',
+    '  var navs=document.querySelectorAll(".nav-item");',
+    '  var idx={dashboard:0,orders:1,pix:2}[name];',
+    '  if(navs[idx])navs[idx].classList.add("active");',
+    '  if(name==="orders")loadOrders();',
+    '}',
+    '',
+    'function setStatus(h,ok){',
+    '  $("statusMsg").innerHTML=ok!==false?"<span class=\\"text-green-600\\">"+h+"</span>":"<span class=\\"text-red-500\\">"+h+"</span>";',
+    '}',
+    '',
+    'async function load(){',
+    '  setStatus("Carregando...");',
+    '  try{',
+    '    var res=await fetch("/api/pix-config-admin?_="+Date.now(),{cache:"no-store"});',
+    '    if(res.status===401){setStatus("401: credenciais invalidas.",false);return}',
+    '    var data=await res.json();',
+    '    if(!data||!data.ok)throw new Error("invalid");',
+    '    $("pix").value=data.pix_code||"";',
+    '    $("qr").value=(data.qrcode_url===null)?"":data.qrcode_url||"";',
+    '    $("disableQr").checked=(data.qrcode_url===null);',
+    '    $("updated").textContent=data.updated_at?new Date(data.updated_at).toLocaleString("pt-BR"):"-";',
+    '    setStatus("Carregado.");',
+    '  }catch(e){setStatus("Falha ao carregar.",false);console.error(e)}',
+    '}',
+    '',
+    'async function save(){',
+    '  var pix=$("pix").value.trim();',
+    '  var disableQr=$("disableQr").checked;',
+    '  var qr=$("qr").value.trim();',
+    '  setStatus("Salvando...");',
+    '  try{',
+    '    var payload={pix_code:pix,qrcode_url:disableQr?null:(qr||"/assets/img/qrcode.webp")};',
+    '    var res=await fetch("/api/pix-config-admin",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});',
+    '    if(res.status===401){setStatus("401: credenciais invalidas.",false);return}',
+    '    var data=await res.json().catch(function(){return null});',
+    '    if(!res.ok||!data||!data.ok){setStatus("Erro ao salvar.",false);return}',
+    '    $("updated").textContent=data.updated_at?new Date(data.updated_at).toLocaleString("pt-BR"):"-";',
+    '    setStatus("Salvo com sucesso!");',
+    '  }catch(e){setStatus("Falha ao salvar.",false);console.error(e)}',
+    '}',
+    '',
+    'async function loadMetrics(){',
+    '  try{',
+    '    var res=await fetch("/api/metrics/stats?_="+Date.now(),{cache:"no-store"});',
+    '    if(res.status===401)return;',
+    '    var data=await res.json().catch(function(){return null});',
+    '    if(data&&data.ok){',
+    '      $("onlineNow").textContent=data.online_now||"0";',
+    '      $("pixClicks").textContent=data.pix_copy_clicks_total||"0";',
+    '    }',
+    '  }catch(e){}',
+    '}',
+    '',
+    'var allOrders=[];',
+    '',
+    'async function loadOrders(){',
+    '  try{',
+    '    var res=await fetch("/api/orders?_="+Date.now(),{cache:"no-store"});',
+    '    if(res.status===401)return;',
+    '    var data=await res.json().catch(function(){return null});',
+    '    if(data&&data.ok&&Array.isArray(data.orders)){',
+    '      allOrders=data.orders;',
+    '      renderOrders();',
+    '      updateOrderStats();',
+    '    }',
+    '  }catch(e){}',
+    '}',
+    '',
+    'function updateOrderStats(){',
+    '  var today=new Date().toISOString().slice(0,10);',
+    '  var todayCount=allOrders.filter(function(o){return o.created_at&&o.created_at.slice(0,10)===today}).length;',
+    '  $("ordersToday").textContent=todayCount;',
+    '  $("ordersTotal").textContent=allOrders.length;',
+    '}',
+    '',
+    'function formatDate(iso){',
+    '  if(!iso)return"-";',
+    '  try{return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}',
+    '  catch(e){return iso}',
+    '}',
+    '',
+    'function formatPhone(p){',
+    '  if(!p)return"-";',
+    '  var d=String(p).replace(/[^0-9]/g,"");',
+    '  if(d.length===11)return"("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);',
+    '  if(d.length===13)return"+"+d.slice(0,2)+" ("+d.slice(2,4)+") "+d.slice(4,9)+"-"+d.slice(9);',
+    '  return p;',
+    '}',
+    '',
+    'function esc(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}',
+    '',
+    'function renderOrderTable(orders,containerId){',
+    '  var el=$(containerId);',
+    '  if(!orders.length){el.innerHTML="<div class=\\"text-center py-10 text-slate-400 text-sm\\">Nenhum pedido encontrado.</div>";return}',
+    '  var h="<table class=\\"w-full text-sm\\"><thead><tr class=\\"bg-slate-50 border-b border-slate-200\\">";',
+    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Cliente</th>";',
+    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Contato</th>";',
+    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase hidden lg:table-cell\\">Endereco</th>";',
+    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Data</th>";',
+    '  h+="<th class=\\"text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Valor</th>";',
+    '  h+="</tr></thead><tbody>";',
+    '  orders.forEach(function(o){',
+    '    h+="<tr class=\\"border-b border-slate-50 hover:bg-slate-50\\">";',
+    '    h+="<td class=\\"px-4 py-3\\"><div class=\\"font-semibold text-slate-800\\">"+esc(o.name)+"</div><div class=\\"text-xs text-slate-400 mt-0.5\\">"+esc(o.id)+"</div></td>";',
+    '    h+="<td class=\\"px-4 py-3\\"><div class=\\"font-medium\\">"+esc(formatPhone(o.phone))+"</div><div class=\\"text-xs text-slate-400\\">"+esc(o.email)+"</div>"+(o.cpf?"<div class=\\"text-xs text-slate-400\\">CPF: "+esc(o.cpf)+"</div>":"")+"</td>";',
+    '    h+="<td class=\\"px-4 py-3 hidden lg:table-cell\\"><div class=\\"text-xs text-slate-500\\">"+esc(o.address||"-")+(o.number?", "+esc(o.number):"")+"</div><div class=\\"text-xs text-slate-400\\">"+esc(o.city||"-")+(o.cep?" - "+esc(o.cep):"")+"</div></td>";',
+    '    h+="<td class=\\"px-4 py-3\\"><div class=\\"text-xs text-slate-500\\">"+formatDate(o.created_at)+"</div></td>";',
+    '    h+="<td class=\\"px-4 py-3 text-right\\"><div class=\\"font-bold text-green-600\\">R$ "+(o.value||197.99).toFixed(2).replace(".",",")+"</div></td>";',
+    '    h+="</tr>";',
+    '  });',
+    '  h+="</tbody></table>";',
+    '  el.innerHTML=h;',
+    '}',
+    '',
+    'async function clearOrders(){',
+    '  if(!confirm("Tem certeza que deseja apagar TODOS os pedidos? Esta acao nao pode ser desfeita."))return;',
+    '  try{',
+    '    var res=await fetch("/api/orders",{method:"DELETE"});',
+    '    var data=await res.json().catch(function(){return null});',
+    '    if(data&&data.ok){allOrders=[];renderOrders();updateOrderStats();alert("Pedidos apagados com sucesso.")}',
+    '    else{alert("Erro ao apagar pedidos.")}',
+    '  }catch(e){alert("Erro ao apagar pedidos.")}',
+    '}',
+    '',
+    'function renderOrders(){',
+    '  renderOrderTable(allOrders.slice(0,5),"recentOrdersBody");',
+    '  renderOrderTable(allOrders,"ordersBody");',
+    '}',
+    '',
+    'function init(){',
+    '  $("reload").addEventListener("click",load);',
+    '  $("save").addEventListener("click",save);',
+    '  $("disableQr").addEventListener("change",function(){',
+    '    $("qr").disabled=$("disableQr").checked;',
+    '    if($("disableQr").checked)$("qr").value="";',
+    '  });',
+    '  load();loadMetrics();loadOrders();',
+    '  setInterval(loadMetrics,10000);',
+    '  setInterval(loadOrders,30000);',
+    '}',
+    'init();',
+    '<\/script>',
+    '</body>',
+    '</html>',
+  ].join('\n');
+
+  return page;
+}
+
+function htmlResponse(body, status = 200) {
   return new Response(body, {
     status,
     headers: {
@@ -48,191 +339,5 @@ function html(body, status = 200) {
 
 export async function onRequestGet(context) {
   if (!checkBasicAuth(context.request, context.env)) return unauthorized();
-
-  return html(`<!doctype html>
-<html lang="pt-br">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Painel PIX</title>
-  <style>
-    :root { color-scheme: light; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; }
-    .wrap { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
-    .card { background: #111a2e; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
-    h1 { margin: 0 0 6px; font-size: 22px; }
-    p { margin: 6px 0 14px; opacity: .9; }
-    label { display:block; font-size: 12px; opacity: .9; margin: 14px 0 6px; }
-    input, textarea { width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color: #e5e7eb; padding: 12px 12px; outline: none; }
-    textarea { min-height: 130px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .row { display:flex; gap: 12px; flex-wrap: wrap; }
-    .row > div { flex: 1 1 240px; }
-    .btns { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-    button { border: 0; border-radius: 12px; padding: 12px 14px; font-weight: 700; cursor: pointer; }
-    .primary { background: #22c55e; color: #052e14; }
-    .ghost { background: rgba(255,255,255,.08); color: #e5e7eb; }
-    .hint { font-size: 12px; opacity: .85; }
-    .ok { color: #34d399; }
-    .err { color: #fb7185; }
-    code { background: rgba(255,255,255,.08); padding: 2px 6px; border-radius: 8px; }
-    .topbar { display:flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .pill { font-size: 12px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.10); }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="topbar">
-      <h1>🔐 Painel do PIX</h1>
-      <div class="pill">Cloudflare Pages + KV</div>
-    </div>
-
-    <div class="card">
-      <p>Edite o <b>PIX Copia e Cola</b> (e opcionalmente o QR). O checkout puxa de <code>/api/pix-config</code> automaticamente.</p>
-      <p class="hint">Este painel já está protegido com <b>usuário e senha</b> (HTTP Basic) via Secrets: <code>PIX_ADMIN_USER</code> e <code>PIX_ADMIN_PASS</code>.</p>
-
-      <div class="row">
-        <div>
-          <label>Status</label>
-          <div id="status" class="hint">Carregando…</div>
-          <div class="hint" style="margin-top:8px">Última atualização: <span id="updated">—</span></div>
-        </div>
-        <div>
-          <label>Endpoint de admin</label>
-          <div class="hint"><code>/api/pix-config-admin</code></div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:14px">
-        <div>
-          <label>👥 Online agora</label>
-          <div class="pill"><span id="onlineNow">—</span> pessoas (últimos ~60s)</div>
-        </div>
-        <div>
-          <label>📋 Cliques em “Copiar PIX”</label>
-          <div class="pill"><span id="pixClicks">—</span> total</div>
-        </div>
-      </div>
-      <div class="hint" style="margin-top:8px">Métricas atualizam a cada 10s. (Site envia pings em <code>/api/metrics/ping</code> e o painel lê de <code>/api/metrics/stats</code>.)</div>
-
-      <label>PIX Copia e Cola</label>
-      <textarea id="pix"></textarea>
-
-      <label>QR Code (URL ou caminho) — opcional</label>
-      <input id="qr" placeholder="ex.: assets/img/qrcode.webp (ou URL completa)" />
-      <div class="hint">Para <b>ocultar</b> o QR, marque “Desativar QR Code”.</div>
-
-      <label style="display:flex; align-items:center; gap:8px; margin-top: 10px;">
-        <input id="disableQr" type="checkbox" style="width:auto;" />
-        Desativar QR Code
-      </label>
-
-      <div class="btns">
-        <button class="primary" id="save">Salvar PIX ✅</button>
-        <button class="ghost" id="reload">Recarregar</button>
-      </div>
-
-      <p class="hint" style="margin-top: 14px;">Se aparecer 401/Unauthorized, confira os Secrets <code>PIX_ADMIN_USER</code> e <code>PIX_ADMIN_PASS</code> no seu projeto Pages.</p>
-    </div>
-  </div>
-
-<script>
-  const $ = (id) => document.getElementById(id);
-
-  function setStatus(html, ok=true) {
-    $('status').innerHTML = ok ? '<span class="ok">' + html + '</span>' : '<span class="err">' + html + '</span>';
-  }
-
-  async function load() {
-    setStatus('Carregando…');
-    try {
-      const res = await fetch('/api/pix-config-admin?_=' + Date.now(), { cache: 'no-store' });
-      if (res.status === 401) {
-        setStatus('401: usuário/senha inválidos (ou secrets não configurados).', false);
-        return;
-      }
-      const data = await res.json();
-      if (!data || !data.ok) throw new Error('Resposta inválida');
-      $('pix').value = data.pix_code || '';
-      $('qr').value = (data.qrcode_url === null) ? '' : (data.qrcode_url || '');
-      $('disableQr').checked = (data.qrcode_url === null);
-      $('updated').textContent = data.updated_at || '—';
-      setStatus('Config carregada.');
-    } catch (e) {
-      setStatus('Falha ao carregar config. Veja o console.', false);
-      console.error(e);
-    }
-  }
-
-  async function loadMetrics() {
-    try {
-      const res = await fetch('/api/metrics/stats?_=' + Date.now(), { cache: 'no-store' });
-      if (res.status === 401) return;
-      const data = await res.json().catch(() => null);
-      if (data && data.ok) {
-        const online = (data.online_now === 0 || data.online_now) ? String(data.online_now) : '0';
-        const clicks = (data.pix_copy_clicks_total === 0 || data.pix_copy_clicks_total) ? String(data.pix_copy_clicks_total) : '0';
-        const elOnline = $('onlineNow');
-        const elClicks = $('pixClicks');
-        if (elOnline) elOnline.textContent = online;
-        if (elClicks) elClicks.textContent = clicks;
-      }
-    } catch (e) {
-      // silent
-    }
-  }
-
-
-  async function save() {
-    const pix = $('pix').value.trim();
-    const disableQr = $('disableQr').checked;
-    const qr = $('qr').value.trim();
-
-    setStatus('Salvando…');
-
-    try {
-      const payload = { pix_code: pix, qrcode_url: disableQr ? null : (qr || 'assets/img/qrcode.webp') };
-      const res = await fetch('/api/pix-config-admin', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.status === 401) {
-        setStatus('401: usuário/senha inválidos (ou secrets não configurados).', false);
-        return;
-      }
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data || !data.ok) {
-        setStatus('Erro ao salvar. Confira o PIX e tente de novo.', false);
-        console.log('resp', res.status, data);
-        return;
-      }
-
-      $('updated').textContent = data.updated_at || '—';
-      setStatus('Salvo com sucesso! 🎉');
-    } catch (e) {
-      setStatus('Falha ao salvar. Veja o console.', false);
-      console.error(e);
-    }
-  }
-
-  function init() {
-    $('reload').addEventListener('click', load);
-    $('save').addEventListener('click', save);
-
-    $('disableQr').addEventListener('change', () => {
-      $('qr').disabled = $('disableQr').checked;
-      if ($('disableQr').checked) $('qr').value = '';
-    });
-
-    load();
-    loadMetrics();
-    setInterval(loadMetrics, 10000);
-  }
-
-  init();
-</script>
-</body>
-</html>`);
+  return htmlResponse(serveHTML());
 }

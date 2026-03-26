@@ -51,7 +51,7 @@
       <textarea id="pix"></textarea>
 
       <label>QR Code (URL ou caminho) — opcional</label>
-      <input id="qr" placeholder="ex.: assets/img/qrcode.webp (ou URL completa)" />
+      <input id="qr" placeholder="ex.: /assets/img/qrcode.webp (ou URL completa)" />
       <div class="hint">Para <b>ocultar</b> o QR, marque “Desativar QR Code”.</div>
 
       <label style="display:flex; align-items:center; gap:8px; margin-top: 10px;">
@@ -105,7 +105,7 @@
     setStatus('Salvando…');
 
     try {
-      const payload = { pix_code: pix, qrcode_url: disableQr ? null : (qr || 'assets/img/qrcode.webp') };
+      const payload = { pix_code: pix, qrcode_url: disableQr ? null : (qr || '/assets/img/qrcode.webp') };
       const res = await fetch('/api/pix-config-admin', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

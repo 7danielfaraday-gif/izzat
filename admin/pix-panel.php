@@ -304,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'chang
                 <div class="row">
                     <div>
                         <label>URL/Path da imagem do QR Code (opcional)</label>
-                        <input name="qrcode_url" value="<?= h($currentQr) ?>" placeholder="Ex.: assets/img/qrcode.webp" />
+                        <input name="qrcode_url" value="<?= h($currentQr) ?>" placeholder="Ex.: /assets/img/qrcode.webp" />
                         <div class="mini">Deixe vazio para o checkout usar o QR padrão.</div>
                     </div>
                     <div>
