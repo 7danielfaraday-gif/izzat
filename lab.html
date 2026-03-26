@@ -2401,8 +2401,8 @@
                         <path d="M19 12H5M12 19l-7-7 7-7" />
                     </svg>
                 </div>
-                <img alt="Logo" decoding="async" loading="lazy" src="assets/img/logo.webp"
-                    onerror="this.onerror=null; this.src='assets/img/logo.webp'"
+                <img alt="Logo" decoding="async" loading="lazy" src="/assets/img/logo.webp"
+                    onerror="this.onerror=null; this.src='/assets/img/logo.webp'"
                     style="height: 32px; width: auto; object-fit: contain;" />
             </div>
             <div class="static-container">
@@ -2410,7 +2410,7 @@
                     <div class="static-card">
                         <div class="static-badge">OFERTA TIKTOK</div>
                         <div class="static-img-box"><img alt="Fritadeira" class="static-img" decoding="async"
-                                height="80" loading="eager" src="assets/img/01.webp" width="80" /></div>
+                                height="80" loading="eager" src="/assets/img/01.webp" width="80" /></div>
                         <div class="static-info">
                             <h3 class="static-title">Fritadeira Elétrica Forno Oven 12L Mondial AFON-12L-BI</h3>
                             <div><span class="static-old-price">De R$ 399,90</span><span class="static-new-price">Por R$
@@ -2806,7 +2806,7 @@
                 }
 
                 // Atualiza URL sem reload
-                var target = (typeof targetHref === 'string' && targetHref) ? targetHref : '/c';
+                var target = (typeof targetHref === 'string' && targetHref && targetHref.indexOf('javascript') === -1) ? targetHref : '/c';
                 var checkoutUrl = window.buildCheckoutUrl ? window.buildCheckoutUrl(target) : target;
                 try {
                     var u = new URL(checkoutUrl, window.location.origin);
@@ -3009,7 +3009,7 @@
         };
     </script>
     <script defer onerror="window.__localLibFallback('tailwind-local')" src="assets/vendor/tailwindcss.js"></script>
-    <script defer onerror="window.__localLibFallback('checkoutapp')" src="assets/js/checkout.app.js"></script>
+    <script defer onerror="window.__localLibFallback('checkoutapp')" src="assets/js/checkout.app.js?v=4.8"></script>
 </body>
 
 </html>
