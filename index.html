@@ -1,207 +1,610 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>Laboratório de Teste PIX - In-App Browser</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8fafc; }
-        .success { border-color: #22c55e !important; background-color: #f0fdf4 !important; color: #15803d !important; }
-        .error { border-color: #ef4444 !important; background-color: #fef2f2 !important; color: #b91c1c !important; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>PIX — Lab de Testes</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+
+    .tab-btn { padding: 10px 18px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .tab-btn.active   { background: #3b82f6; color: #fff; }
+    .tab-btn.inactive { background: #1e293b; color: #64748b; }
+    .tab-btn.inactive:hover { background: #273348; color: #94a3b8; }
+
+    .test-card { background: #1e293b; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid #273348; }
+    .test-card h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #e2e8f0; }
+    .test-card p  { margin: 0; font-size: 11px; color: #64748b; line-height: 1.5; }
+    .test-btn { margin-top: 10px; padding: 9px 16px; border-radius: 7px; border: none; font-weight: 700; font-size: 12px; cursor: pointer; width: 100%; transition: all .15s; }
+    .test-btn:active { transform: scale(.97); }
+
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; margin-left: 6px; }
+    .badge-pending { background:#334155; color:#94a3b8; }
+    .badge-running { background:#1d4ed8; color:#bfdbfe; }
+    .badge-ok      { background:#14532d; color:#86efac; }
+    .badge-fail    { background:#7f1d1d; color:#fca5a5; }
+    .badge-warn    { background:#713f12; color:#fde68a; }
+    .badge-blocked { background:#581c87; color:#d8b4fe; }
+
+    #paste-area { width:100%; background:#0f172a; border:2px dashed #334155; border-radius:8px; padding:10px; font-family:monospace; font-size:11px; color:#94a3b8; resize:none; height:70px; outline:none; }
+    #paste-area:focus { border-color:#3b82f6; color:#e2e8f0; }
+
+    .log-line { padding: 3px 0; border-bottom: 1px solid #1e293b; font-family: monospace; font-size: 11px; word-break: break-all; }
+    .log-line.ok   { color: #4ade80; }
+    .log-line.err  { color: #f87171; }
+    .log-line.warn { color: #facc15; }
+    .log-line.info { color: #60a5fa; }
+    .log-line.found{ color: #f97316; font-weight:700; }
+
+    .btn-tactile { touch-action: manipulation; }
+  </style>
 </head>
-<body class="p-4 max-w-[480px] mx-auto pb-20">
+<body>
 
-    <div class="mb-6 text-center">
-        <h1 class="text-xl font-extrabold text-slate-800">Laboratório PIX TikTok</h1>
-        <p class="text-xs text-slate-500">Testando a captura do clipboard no in-app</p>
+<!-- TABS -->
+<div style="display:flex;overflow-x:auto;background:#1e293b;border-bottom:1px solid #273348;position:sticky;top:0;z-index:100;">
+  <button class="tab-btn active"  onclick="showTab('lab')">🔬 Lab de Testes</button>
+  <button class="tab-btn inactive" onclick="showTab('pix')">💚 Tela PIX</button>
+  <button class="tab-btn inactive" onclick="showTab('env')">⚙️ Ambiente</button>
+</div>
+
+<!-- ═══════════════════════════════════════
+     TAB 1 — LAB
+════════════════════════════════════════ -->
+<div id="tab-lab" style="padding:14px;max-width:600px;margin:0 auto;">
+
+  <div style="background:#172033;border:1px solid #1e40af;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+    <p style="margin:0;font-size:12px;color:#93c5fd;line-height:1.6;">
+      <strong style="color:#60a5fa;">Como usar:</strong> Execute cada teste e <strong>cole no verificador abaixo</strong> para ver exatamente o que ficou no clipboard — incluindo se o TikTok adicionou <code style="background:#1e3a5f;padding:1px 4px;border-radius:3px;">https://</code>.
+    </p>
+  </div>
+
+  <!-- PASTE VERIFIER -->
+  <div class="test-card" style="border-color:#3b82f6;">
+    <h3>📋 Verificador de Paste <span style="font-weight:400;font-size:11px;color:#64748b;">— cole aqui após cada teste</span></h3>
+    <textarea id="paste-area" placeholder="Após executar um teste, toque aqui e cole (long-press → Colar)..." oninput="analyzePaste(this.value)"></textarea>
+    <div id="paste-result" style="margin-top:8px;font-size:11px;min-height:16px;"></div>
+    <button class="test-btn" style="background:#334155;color:#94a3b8;margin-top:6px;" onclick="document.getElementById('paste-area').value='';document.getElementById('paste-result').innerHTML='';">Limpar</button>
+  </div>
+
+  <!-- TESTE 1 -->
+  <div class="test-card">
+    <h3>Teste 1 — <code>navigator.clipboard.writeText()</code> <span id="s1" class="status-badge badge-pending">pendente</span></h3>
+    <p>Método moderno padrão. Verifica se o TikTok permite acesso à Clipboard API. Se bloqueado, a Promise rejeita silenciosamente.</p>
+    <button class="test-btn" style="background:#1d4ed8;color:#fff;" onclick="runTest1()">▶ Executar — depois cole no verificador acima</button>
+    <div id="r1" style="margin-top:8px;font-size:11px;color:#64748b;word-break:break-all;"></div>
+  </div>
+
+  <!-- TESTE 2 -->
+  <div class="test-card">
+    <h3>Teste 2 — <code>execCommand('copy')</code> via textarea <span id="s2" class="status-badge badge-pending">pendente</span></h3>
+    <p>Método legado. Cria um &lt;textarea&gt; invisível, seleciona e copia. Verifica se o TikTok bloqueia isso também.</p>
+    <button class="test-btn" style="background:#1d4ed8;color:#fff;" onclick="runTest2()">▶ Executar — depois cole no verificador acima</button>
+    <div id="r2" style="margin-top:8px;font-size:11px;color:#64748b;word-break:break-all;"></div>
+  </div>
+
+  <!-- TESTE 3 -->
+  <div class="test-card">
+    <h3>Teste 3 — <code>ClipboardItem</code> + Blob <code>text/plain</code> <span id="s3" class="status-badge badge-pending">pendente</span></h3>
+    <p>Força MIME type explícito. Testa se declarar <code>text/plain</code> via Blob impede o Data Detector de linkificar ao escrever.</p>
+    <button class="test-btn" style="background:#1d4ed8;color:#fff;" onclick="runTest3()">▶ Executar — depois cole no verificador acima</button>
+    <div id="r3" style="margin-top:8px;font-size:11px;color:#64748b;word-break:break-all;"></div>
+  </div>
+
+  <!-- TESTE 4 -->
+  <div class="test-card">
+    <h3>Teste 4 — Long-press manual em &lt;p&gt; <span id="s4" class="status-badge badge-pending">pendente</span></h3>
+    <p>Simula o usuário copiando manualmente de um parágrafo. Toque e segure no código abaixo → Selecionar tudo → Copiar. Depois cole no verificador.</p>
+    <div style="margin-top:10px;background:#0f172a;border-radius:6px;padding:10px;border:1px solid #334155;">
+      <p style="font-family:monospace;font-size:10px;color:#94a3b8;word-break:break-all;margin:0;user-select:all;-webkit-user-select:all;">00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984</p>
     </div>
+    <p style="margin-top:6px;font-size:10px;color:#f97316;">⚠️ Copie o texto acima manualmente (não clique em botão). Depois cole no verificador.</p>
+    <button class="test-btn" style="background:#334155;color:#94a3b8;" onclick="setBadge('s4','running','aguardando paste...')">Marquei que copiei manualmente</button>
+  </div>
 
-    <!-- Dados do User Agent -->
-    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-6">
-        <h2 class="text-xs font-bold text-indigo-800 uppercase mb-1">Diagnóstico do Aparelho</h2>
-        <p id="ua-display" class="text-[10px] text-indigo-600 font-mono break-all"></p>
-        <div class="mt-2 text-xs font-bold" id="is-in-app"></div>
+  <!-- TESTE 5 -->
+  <div class="test-card">
+    <h3>Teste 5 — Long-press em &lt;input readonly&gt; sem interceptor <span id="s5" class="status-badge badge-pending">pendente</span></h3>
+    <p>Mesmo código mas em &lt;input readonly&gt;. Verifica se o WebView linkifica o valor de inputs.</p>
+    <div style="margin-top:10px;background:#0f172a;border-radius:6px;padding:10px;border:1px solid #334155;">
+      <input type="text" readonly
+        value="00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984"
+        style="font-family:monospace;font-size:10px;color:#94a3b8;width:100%;background:transparent;border:none;outline:none;"
+        oncopy="log('Teste 5: onCopy disparou no input sem interceptor','warn');setBadge('s5','warn','onCopy sem interceptar');"
+      />
     </div>
+    <p style="margin-top:6px;font-size:10px;color:#f97316;">⚠️ Copie manualmente o input acima. Depois cole no verificador.</p>
+    <button class="test-btn" style="background:#334155;color:#94a3b8;" onclick="setBadge('s5','running','aguardando paste...')">Marquei que copiei manualmente</button>
+  </div>
 
-    <!-- Área de Paste (Avaliação) -->
-    <div class="bg-white border-2 border-slate-300 rounded-xl p-4 mb-8 shadow-md sticky top-0 z-50">
-        <h2 class="font-bold text-slate-800 text-sm mb-2">1º Passo: Cole o PIX copiado aqui</h2>
-        <p class="text-[10px] text-slate-400 mb-2">Após usar um dos botões de teste abaixo, pressione e segure na caixa abaixo para colar e validar automaticamente se o https:// foi inserido.</p>
-        
-        <textarea id="paste-analyzer" rows="3" placeholder="Pressione aqui e cole..." class="w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors"></textarea>
-        
-        <div id="result-box" class="mt-2 text-xs font-bold hidden p-2 rounded border"></div>
-        <button onclick="document.getElementById('paste-analyzer').value=''; document.getElementById('result-box').classList.add('hidden');" class="mt-2 text-[10px] text-slate-500 underline">Limpar área de colagem</button>
+  <!-- TESTE 6 -->
+  <div class="test-card">
+    <h3>Teste 6 — &lt;input readonly&gt; + <code>onCopy</code> interceptor (o fix) <span id="s6" class="status-badge badge-pending">pendente</span></h3>
+    <p>Igual ao Teste 5 mas com <code>onCopy</code> que intercepta e força texto puro antes de ir ao clipboard. Este é o fix proposto.</p>
+    <div style="margin-top:10px;background:#0f172a;border-radius:6px;padding:10px;border:1px solid #14532d;">
+      <input id="test6-input" type="text" readonly
+        value="00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984"
+        style="font-family:monospace;font-size:10px;color:#86efac;width:100%;background:transparent;border:none;outline:none;"
+        oncopy="interceptCopy6(event)"
+      />
     </div>
+    <p style="margin-top:6px;font-size:10px;color:#4ade80;">✅ Copie o texto verde manualmente. O interceptor deve agir. Depois cole no verificador.</p>
+    <button class="test-btn" style="background:#334155;color:#94a3b8;" onclick="setBadge('s6','running','interceptor ativo...')">Marquei que copiei manualmente</button>
+    <div id="r6" style="margin-top:8px;font-size:11px;color:#64748b;"></div>
+  </div>
 
-    <hr class="my-6 border-slate-200">
+  <!-- TESTE 7 -->
+  <div class="test-card">
+    <h3>Teste 7 — Read-back automático do clipboard <span id="s7" class="status-badge badge-pending">pendente</span></h3>
+    <p>Escreve via <code>writeText()</code> e lê de volta com <code>readText()</code>. Se o TikTok permite leitura, mostramos aqui o que realmente está no clipboard — sem precisar colar.</p>
+    <button class="test-btn" style="background:#7c3aed;color:#fff;" onclick="runTest7()">▶ Executar (automático)</button>
+    <div id="r7" style="margin-top:8px;font-size:11px;font-family:monospace;word-break:break-all;"></div>
+  </div>
 
-    <!-- Bateria de Testes -->
-    <h2 class="font-bold text-slate-800 text-sm mb-4">2º Passo: Bateria de Testes de Cópia</h2>
-    <div class="space-y-6" id="tests-container"></div>
+  <!-- TESTE 8 -->
+  <div class="test-card">
+    <h3>Teste 8 — Web Share API nativa <span id="s8" class="status-badge badge-pending">pendente</span></h3>
+    <p>Aciona o Share Sheet nativo do S.O. — fora do sandbox do WebView. Escolha "Copiar" e cole no verificador.</p>
+    <button class="test-btn" style="background:#0d9488;color:#fff;" onclick="runTest8()">▶ Abrir Share Sheet nativo</button>
+    <div id="r8" style="margin-top:8px;font-size:11px;color:#64748b;"></div>
+  </div>
 
-    <script>
-        const PIX_CODE = "00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925LOJISTA TESTE 6009SAO PAULO62070503***63047984";
+  <!-- SUMÁRIO -->
+  <div id="summary-card" style="display:none;" class="test-card">
+    <h3>📊 Sumário dos Testes</h3>
+    <div id="summary-content" style="font-size:12px;line-height:2;margin-top:6px;"></div>
+  </div>
 
-        // Inicializa dados do aparelho
-        const ua = navigator.userAgent;
-        document.getElementById('ua-display').innerText = ua;
-        
-        const isInAppBrowser = /TikTok|musical_ly|Instagram|FBAV|FB_IAB/i.test(ua);
-        const inAppStatus = document.getElementById('is-in-app');
-        if (isInAppBrowser) {
-            inAppStatus.innerHTML = '<span class="text-red-600">⚠️ In-App Browser Detectado!</span> O teste é muito valioso agora.';
-        } else {
-            inAppStatus.innerHTML = '<span class="text-green-600">✅ Navegador Externo Livre (Safari/Chrome).</span>';
-        }
+  <!-- LOG -->
+  <div style="background:#0a111e;border-radius:10px;padding:12px;border:1px solid #1e293b;margin-top:4px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:12px;font-weight:700;color:#475569;">📟 Log de eventos</span>
+      <button onclick="document.getElementById('log').innerHTML=''" style="background:#1e293b;border:none;color:#64748b;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">Limpar</button>
+    </div>
+    <div id="log" style="max-height:220px;overflow-y:auto;"></div>
+  </div>
+</div>
 
-        // Analisador de Colagem
-        const pasteBox = document.getElementById('paste-analyzer');
-        const resultBox = document.getElementById('result-box');
+<!-- ═══════════════════════════════════════
+     TAB 2 — TELA PIX
+════════════════════════════════════════ -->
+<div id="tab-pix" style="display:none;">
+  <div style="background:#1e293b;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #273348;">
+    <label style="font-size:11px;color:#94a3b8;font-family:monospace;">Código PIX:</label>
+    <input type="text" id="pix-input-cfg" style="flex:1;min-width:180px;background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:4px;padding:4px 8px;font-size:11px;font-family:monospace;"
+      value="00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984"
+    />
+    <button onclick="updatePixCode()" style="background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-weight:700;">Atualizar</button>
+  </div>
+  <div style="background:#f8fafc;min-height:100vh;">
+    <div id="react-root"></div>
+  </div>
+</div>
 
-        pasteBox.addEventListener('input', (e) => {
-            const val = e.target.value.trim();
-            if (!val) {
-                resultBox.classList.add('hidden');
-                return;
-            }
-            
-            resultBox.classList.remove('hidden', 'success', 'error');
-            
-            if (val === PIX_CODE) {
-                resultBox.classList.add('success');
-                resultBox.innerHTML = '✅ PERFEITO! O código colado está exato (sem https://). Esse método funcionou!';
-            } else if (val.startsWith('http')) {
-                resultBox.classList.add('error');
-                resultBox.innerHTML = '❌ FALHA! A WebView injetou o protocolo (http/https).<br><span class="opacity-70 font-mono mt-1 block">Apareceu: ' + val.substring(0, 30) + '...</span>';
-            } else {
-                resultBox.classList.add('error');
-                resultBox.innerHTML = '⚠️ ALERTA: O código colado está diferente do original, mas não começa com http. Tamanho: ' + val.length;
-            }
-        });
+<!-- ═══════════════════════════════════════
+     TAB 3 — AMBIENTE
+════════════════════════════════════════ -->
+<div id="tab-env" style="display:none;padding:14px;max-width:600px;margin:0 auto;">
+  <div style="background:#1e293b;border-radius:10px;padding:14px;margin-bottom:10px;">
+    <h3 style="margin:0 0 12px;font-size:13px;font-weight:700;">🌐 Detecção de Ambiente</h3>
+    <div id="env-content" style="font-size:12px;line-height:2;font-family:monospace;"></div>
+  </div>
+</div>
 
-        // Setup dos Testes
-        const container = document.getElementById('tests-container');
+<!-- ═══════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════ -->
+<script>
+var PIX_CODE = "00020101021226900014br.gov.bcb.pix2568pix.adyen.com/pixqrcodelocation/pixloc/v1/loc/hWu3o18RS3OOujzeqNF5iQ5204000053039865802BR5925MONETIZZE IMPULSIONADORA 6009SAO PAULO62070503***63047984";
 
-        function createTestCard(title, description, elementHTML, buttonText, testLogic) {
-            const card = document.createElement('div');
-            card.className = "bg-white border text-sm border-slate-200 rounded-xl p-4 shadow-sm relative";
-            
-            card.innerHTML = `
-                <h3 class="font-bold text-slate-800 mb-1">${title}</h3>
-                <p class="text-[11px] text-slate-500 mb-3">${description}</p>
-                <div class="bg-slate-50 border border-slate-100 p-2 rounded-lg mb-3">
-                    <span class="text-[9px] font-bold text-slate-400 block mb-1 uppercase">Como o DOM vê:</span>
-                    ${elementHTML}
-                </div>
-                <button class="test-btn bg-slate-800 text-white font-bold w-full py-2.5 rounded-lg active:bg-slate-700 transition-colors text-xs flex justify-center items-center gap-2">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    ${buttonText}
-                </button>
-                 <div class="log mt-2 text-[10px] font-mono text-slate-400 hidden"></div>
-            `;
+// ── TABS ──────────────────────────────────────────────────────────
+function showTab(name) {
+  ['lab','pix','env'].forEach(function(t) {
+    document.getElementById('tab-'+t).style.display = t===name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(function(b, i) {
+    var t = ['lab','pix','env'][i];
+    b.className = 'tab-btn ' + (t===name ? 'active' : 'inactive');
+  });
+  if (name === 'env') renderEnv();
+}
 
-            const btn = card.querySelector('.test-btn');
-            const logBox = card.querySelector('.log');
+// ── LOG ───────────────────────────────────────────────────────────
+function log(msg, type) {
+  type = type || 'info';
+  var el = document.createElement('div');
+  el.className = 'log-line ' + type;
+  el.textContent = new Date().toLocaleTimeString('pt-BR',{hour12:false}) + '  ' + msg;
+  var box = document.getElementById('log');
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
 
-            btn.addEventListener('click', async () => {
-                logBox.classList.remove('hidden');
-                logBox.innerHTML = '<span class="text-blue-500">Executando...</span>';
-                try {
-                    await testLogic();
-                    logBox.innerHTML = '<span class="text-green-500">Cópia disparada! Suba a página e cole o código na caixa acima para validar.</span>';
-                } catch (e) {
-                    logBox.innerHTML = '<span class="text-red-500">Erro técnico na API: ' + e.message + '</span>';
-                }
-            });
+// ── BADGE ─────────────────────────────────────────────────────────
+var BADGE_CLASSES = { pending:'badge-pending', running:'badge-running', ok:'badge-ok', fail:'badge-fail', warn:'badge-warn', blocked:'badge-blocked' };
+var BADGE_LABELS  = { pending:'pendente', running:'executando...', ok:'✅ OK', fail:'❌ falhou', warn:'⚠️ incerto', blocked:'🚫 bloqueado' };
 
-            container.appendChild(card);
-        }
+function setBadge(id, state, label) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  Object.values(BADGE_CLASSES).forEach(function(c){ el.classList.remove(c); });
+  el.classList.add(BADGE_CLASSES[state] || 'badge-pending');
+  el.textContent = label || BADGE_LABELS[state] || state;
+}
 
-        /* -------------------------------------------------------------
-           BATERIA DE TESTES
-           ------------------------------------------------------------- */
+// ── PASTE ANALYZER ────────────────────────────────────────────────
+function analyzePaste(value) {
+  var el = document.getElementById('paste-result');
+  if (!value) { el.innerHTML = ''; return; }
+  var v = value.trim();
+  var hasHttps    = /^https?:\/\//i.test(v);
+  var isClean     = v === PIX_CODE;
+  var startsRight = v.startsWith('00020101');
 
-        // Teste 1: O Antigo Error (Recriando o crime)
-        // Isso força a renderização num p, o que provavelmente causa o problema de Data Detection
-        createTestCard(
-            "Teste 1: A Falha Original (&lt;p&gt; + writeText)",
-            "O método onde o código ficava dentro de uma tag p clássica e disparava o writeText nativo.",
-            `<p class="text-[10px] text-slate-600 font-mono break-all">${PIX_CODE}</p>`,
-            "Executar writeText() simples",
-            async () => {
-                await navigator.clipboard.writeText(PIX_CODE);
-            }
-        );
+  var html = '';
+  if (hasHttps) {
+    html = '<span style="color:#f87171;font-weight:700;">🚨 BUG CONFIRMADO: TikTok adicionou https:// no início!</span><br>' +
+           '<span style="color:#f97316;font-family:monospace;word-break:break-all;">' + esc(v.substring(0,80)) + '...</span>';
+    log('PASTE: https:// detectado — bug ativo neste WebView', 'found');
+  } else if (isClean) {
+    html = '<span style="color:#4ade80;font-weight:700;">✅ PERFEITO: código colado limpo, sem modificações.</span>';
+    log('PASTE: código limpo — sem interferência', 'ok');
+  } else if (startsRight) {
+    html = '<span style="color:#facc15;font-weight:700;">⚠️ Começa correto (00020101) mas tamanho difere.</span><br>' +
+           '<span style="color:#64748b;">Esperado: '+PIX_CODE.length+' chars | Colado: '+v.length+' chars</span>';
+    log('PASTE: começa correto mas há diferença de tamanho', 'warn');
+  } else {
+    html = '<span style="color:#f87171;">❌ Conteúdo inesperado. Início: <code>' + esc(v.substring(0,50)) + '</code></span>';
+    log('PASTE: conteúdo não reconhecido — início: ' + v.substring(0,50), 'err');
+  }
+  el.innerHTML = html;
+}
 
-        // Teste 2: O Fix do DOM (textarea readonly)
-        createTestCard(
-            "Teste 2: A Correção Estrutural (Textarea readonly)",
-            "Aqui adotamos a ideia do textarea no DOM para despistar o Data Detector, mas mantemos o writeText simples usando o clipboard puro JavaScript.",
-            `<textarea readonly rows="2" class="w-full bg-transparent text-[10px] text-slate-600 font-mono resize-none outline-none">${PIX_CODE}</textarea>`,
-            "Executar writeText()",
-            async () => {
-                await navigator.clipboard.writeText(PIX_CODE);
-            }
-        );
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-        // Teste 3: Exec Command Puro
-        createTestCard(
-            "Teste 3: Cópia Jurássica via Seleção (execCommand)",
-            "Ao invez de usar a API nova, criamos um textarea oculto, selecionamos nativamente e usamos execCommand('copy') enganando completamente o In-App browser.",
-            `<div class="text-[10px] text-slate-400 italic">DOM manipula textarea invisível via JS</div>`,
-            "Executar execCommand('copy')",
-            () => {
-                return new Promise((resolve, reject) => {
-                    const ta = document.createElement('textarea');
-                    ta.value = PIX_CODE;
-                    ta.style.position = 'fixed';
-                    ta.style.left = '-9999px';
-                    // essencial para ios
-                    ta.setAttribute('readonly', '');
-                    document.body.appendChild(ta);
-                    ta.select();
-                    if (/ipad|iphone/i.test(navigator.userAgent)) {
-                        ta.setSelectionRange(0, 999999);
-                    }
-                    const ok = document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    if (ok) resolve(); else reject(new Error('execCommand bloqueado pela WebView'));
-                });
-            }
-        );
+// ── SUMÁRIO ───────────────────────────────────────────────────────
+var RESULTS = {};
+function saveResult(n, state) {
+  RESULTS[n] = state;
+  var card = document.getElementById('summary-card');
+  card.style.display = 'block';
+  var labels = {1:'writeText',2:'execCommand',3:'ClipboardItem+Blob',6:'onCopy interceptor',7:'Read-back automático',8:'Web Share API'};
+  var icons  = {ok:'✅',fail:'❌',blocked:'🚫',warn:'⚠️',running:'⏳'};
+  var colors = {ok:'#4ade80',fail:'#f87171',blocked:'#d8b4fe',warn:'#fde68a'};
 
-        // Teste 4: Tipagem Forte MIME Type (Blob)
-        createTestCard(
-            "Teste 4: Tipagem Estrita (MIME Type: text/plain)",
-            "Usa o formato novo da plataforma para ditar regras ao OS de que aquilo É um texto não identificável.",
-            `<div class="text-[10px] text-slate-400 italic">A API gera um Blob e empurra pro ClipboardItem</div>`,
-            "Executar novo clipboard.write()",
-            async () => {
-                if (!window.ClipboardItem) throw new Error("ClipboardItem não suportado neste aparelho.");
-                const blob = new Blob([PIX_CODE], { type: 'text/plain' });
-                const item = new ClipboardItem({ 'text/plain': blob });
-                await navigator.clipboard.write([item]);
-            }
-        );
-        
-        // Teste 5: Web Share Nativo
-        createTestCard(
-            "Teste 5: Acionar Web Share API",
-            "Manda exatamente o seu código pro menu nativo do celular." + (navigator.share ? "" : " <b class='text-red-500'>(API Indisponível neste celular)</b>"),
-            `<div class="text-[10px] text-slate-400 italic">Chama o Modal nativo da Apple/Google</div>`,
-            "Abrir Modal Nativo (Share)",
-            async () => {
-                if (!navigator.share) throw new Error("O seu dispositivo ou navegador in-app não possui Web Share API ativo.");
-                await navigator.share({
-                    title: 'Código PIX',
-                    text: PIX_CODE
-                });
-            }
-        );
+  var rows = Object.keys(RESULTS).map(function(k) {
+    var s = RESULTS[k];
+    return '<div>' + (icons[s]||'?') + ' <strong>Teste '+k+'</strong> ('+(labels[k]||'')+'):<span style="color:'+(colors[s]||'#94a3b8')+';margin-left:6px;">'+BADGE_LABELS[s]+'</span></div>';
+  }).join('');
 
-    </script>
+  var rec = '';
+  if (RESULTS[6]==='ok') {
+    rec = '<div style="margin-top:10px;padding:8px;background:#14532d;border-radius:6px;color:#86efac;font-size:11px;">💡 <strong>Fix confirmado:</strong> onCopy interceptor funciona — implemente na produção.</div>';
+  } else if (RESULTS[8]==='ok') {
+    rec = '<div style="margin-top:10px;padding:8px;background:#134e4a;border-radius:6px;color:#99f6e4;font-size:11px;">💡 Web Share API disponível — use como método primário no TikTok.</div>';
+  } else if (RESULTS[1]==='blocked' && RESULTS[2]==='fail') {
+    rec = '<div style="margin-top:10px;padding:8px;background:#7f1d1d;border-radius:6px;color:#fca5a5;font-size:11px;">🚨 <strong>Clipboard totalmente bloqueado.</strong> Redirecione o usuário para abrir no browser externo.</div>';
+  }
+
+  document.getElementById('summary-content').innerHTML = rows + rec;
+}
+
+// ── TESTE 1 ───────────────────────────────────────────────────────
+async function runTest1() {
+  setBadge('s1','running');
+  document.getElementById('r1').textContent = '';
+  log('Teste 1: navigator.clipboard.writeText()...','info');
+
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    setBadge('s1','blocked');
+    document.getElementById('r1').textContent = 'navigator.clipboard não existe neste ambiente.';
+    log('Teste 1: indisponível','err'); saveResult(1,'blocked'); return;
+  }
+  try {
+    await navigator.clipboard.writeText(PIX_CODE);
+    setBadge('s1','ok');
+    document.getElementById('r1').textContent = 'API disponível e aceitou o texto. Cole no verificador.';
+    log('Teste 1: OK','ok'); saveResult(1,'ok');
+  } catch(e) {
+    setBadge('s1','blocked');
+    document.getElementById('r1').textContent = e.name + ': ' + e.message;
+    log('Teste 1: bloqueado — '+e.name+': '+e.message,'err'); saveResult(1,'blocked');
+  }
+}
+
+// ── TESTE 2 ───────────────────────────────────────────────────────
+function runTest2() {
+  setBadge('s2','running');
+  document.getElementById('r2').textContent = '';
+  log('Teste 2: execCommand via textarea...','info');
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = PIX_CODE;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+    ta.setAttribute('readonly','');
+    document.body.appendChild(ta);
+    if (/ipad|iphone/i.test(navigator.userAgent)) {
+      var r = document.createRange(); r.selectNodeContents(ta);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); ta.setSelectionRange(0,999999);
+    } else { ta.select(); }
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) {
+      setBadge('s2','ok'); document.getElementById('r2').textContent = 'execCommand retornou true. Cole no verificador.';
+      log('Teste 2: OK','ok'); saveResult(2,'ok');
+    } else {
+      setBadge('s2','fail'); document.getElementById('r2').textContent = 'execCommand retornou false — silenciosamente bloqueado.';
+      log('Teste 2: retornou false','err'); saveResult(2,'fail');
+    }
+  } catch(e) {
+    setBadge('s2','blocked'); document.getElementById('r2').textContent = 'Exceção: '+e.message;
+    log('Teste 2: exceção — '+e.message,'err'); saveResult(2,'blocked');
+  }
+}
+
+// ── TESTE 3 ───────────────────────────────────────────────────────
+async function runTest3() {
+  setBadge('s3','running');
+  document.getElementById('r3').textContent = '';
+  log('Teste 3: ClipboardItem + Blob text/plain...','info');
+  if (!window.ClipboardItem) {
+    setBadge('s3','blocked'); document.getElementById('r3').textContent = 'ClipboardItem não existe neste ambiente.';
+    log('Teste 3: ClipboardItem indisponível','err'); saveResult(3,'blocked'); return;
+  }
+  try {
+    var blob = new Blob([PIX_CODE], { type:'text/plain' });
+    await navigator.clipboard.write([new ClipboardItem({'text/plain':blob})]);
+    setBadge('s3','ok'); document.getElementById('r3').textContent = 'ClipboardItem aceito. Cole no verificador.';
+    log('Teste 3: OK','ok'); saveResult(3,'ok');
+  } catch(e) {
+    setBadge('s3','blocked'); document.getElementById('r3').textContent = e.name+': '+e.message;
+    log('Teste 3: bloqueado — '+e.name+': '+e.message,'err'); saveResult(3,'blocked');
+  }
+}
+
+// ── TESTE 6: onCopy interceptor ───────────────────────────────────
+function interceptCopy6(ev) {
+  ev.preventDefault();
+  ev.clipboardData.setData('text/plain', PIX_CODE);
+  setBadge('s6','ok','interceptado ✅');
+  document.getElementById('r6').textContent = 'onCopy interceptou e injetou texto puro. Cole no verificador.';
+  log('Teste 6: onCopy interceptado — texto puro injetado','ok');
+  saveResult(6,'ok');
+}
+
+// ── TESTE 7: Read-back ────────────────────────────────────────────
+async function runTest7() {
+  setBadge('s7','running');
+  document.getElementById('r7').textContent = '';
+  log('Teste 7: write + readText read-back...','info');
+
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    setBadge('s7','blocked'); document.getElementById('r7').innerHTML = '<span style="color:#f87171;">clipboard API indisponível.</span>';
+    saveResult(7,'blocked'); return;
+  }
+  try {
+    await navigator.clipboard.writeText(PIX_CODE);
+    log('Teste 7: writeText OK, tentando readText...','info');
+  } catch(e) {
+    setBadge('s7','blocked'); document.getElementById('r7').innerHTML = '<span style="color:#f87171;">writeText bloqueado: '+esc(e.message)+'</span>';
+    saveResult(7,'blocked'); return;
+  }
+  if (!navigator.clipboard.readText) {
+    setBadge('s7','warn'); document.getElementById('r7').innerHTML = '<span style="color:#facc15;">writeText OK mas readText não existe — use o verificador de paste.</span>';
+    log('Teste 7: readText indisponível','warn'); saveResult(7,'warn'); return;
+  }
+  try {
+    var content = await navigator.clipboard.readText();
+    if (/^https?:\/\//i.test(content)) {
+      setBadge('s7','fail','🚨 https:// detectado');
+      document.getElementById('r7').innerHTML = '<span style="color:#f87171;font-weight:700;">🚨 TikTok MODIFICOU o clipboard!</span><br><code style="color:#fca5a5;word-break:break-all;">'+esc(content.substring(0,100))+'</code>';
+      log('Teste 7: READ-BACK DETECTOU https:// — BUG CONFIRMADO','found'); saveResult(7,'fail');
+    } else if (content === PIX_CODE) {
+      setBadge('s7','ok','✅ read-back OK');
+      document.getElementById('r7').innerHTML = '<span style="color:#4ade80;">✅ Clipboard idêntico ao original — sem modificação.</span>';
+      log('Teste 7: read-back OK — conteúdo intacto','ok'); saveResult(7,'ok');
+    } else {
+      setBadge('s7','warn','⚠️ conteúdo diferente');
+      document.getElementById('r7').innerHTML = '<span style="color:#facc15;">⚠️ Conteúdo difere do esperado:</span><br><code style="color:#fde68a;word-break:break-all;">'+esc(content.substring(0,100))+'</code>';
+      log('Teste 7: conteúdo diferente — '+content.substring(0,60),'warn'); saveResult(7,'warn');
+    }
+  } catch(e) {
+    setBadge('s7','blocked','🚫 readText bloqueado');
+    document.getElementById('r7').innerHTML = '<span style="color:#d8b4fe;">readText bloqueado ('+esc(e.name)+'). Use o verificador de paste.</span>';
+    log('Teste 7: readText bloqueado — '+e.name,'warn'); saveResult(7,'blocked');
+  }
+}
+
+// ── TESTE 8: Web Share API ────────────────────────────────────────
+async function runTest8() {
+  setBadge('s8','running');
+  document.getElementById('r8').textContent = '';
+  log('Teste 8: navigator.share()...','info');
+  if (!navigator.share) {
+    setBadge('s8','blocked'); document.getElementById('r8').textContent = 'Web Share API não disponível neste ambiente.';
+    log('Teste 8: indisponível','err'); saveResult(8,'blocked'); return;
+  }
+  try {
+    await navigator.share({ title:'Código PIX', text:PIX_CODE });
+    setBadge('s8','ok'); document.getElementById('r8').textContent = 'Share Sheet aberto. Se escolheu "Copiar", cole no verificador.';
+    log('Teste 8: Share Sheet OK','ok'); saveResult(8,'ok');
+  } catch(e) {
+    if (e.name==='AbortError') {
+      setBadge('s8','warn','cancelado pelo user'); document.getElementById('r8').textContent = 'Usuário fechou o Share Sheet.';
+      log('Teste 8: AbortError — cancelado','warn'); saveResult(8,'warn');
+    } else {
+      setBadge('s8','blocked'); document.getElementById('r8').textContent = e.name+': '+e.message;
+      log('Teste 8: erro — '+e.name+': '+e.message,'err'); saveResult(8,'blocked');
+    }
+  }
+}
+
+// ── AMBIENTE ──────────────────────────────────────────────────────
+function detectBrowser() {
+  var ua = navigator.userAgent;
+  if (/TikTok|musical_ly/i.test(ua))  return '🔴 TikTok In-App Browser';
+  if (/Instagram/i.test(ua))          return '🟡 Instagram In-App Browser';
+  if (/FBAV|FB_IAB/i.test(ua))        return '🟡 Facebook In-App Browser';
+  if (/CriOS/i.test(ua))              return '🔵 Chrome iOS (WebKit)';
+  if (/SamsungBrowser/i.test(ua))     return '🟠 Samsung Browser';
+  if (/Chrome/i.test(ua))             return '🔵 Chrome';
+  if (/Safari/i.test(ua))             return '🧭 Safari';
+  if (/Firefox/i.test(ua))            return '🦊 Firefox';
+  return '❓ Desconhecido';
+}
+
+function renderEnv() {
+  var ua = navigator.userAgent;
+  var rows = [
+    ['Browser detectado',       detectBrowser()],
+    ['navigator.clipboard',     !!(navigator.clipboard) ? '✅ existe' : '❌ não existe'],
+    ['clipboard.writeText',     !!(navigator.clipboard && navigator.clipboard.writeText) ? '✅ existe' : '❌ não existe'],
+    ['clipboard.readText',      !!(navigator.clipboard && navigator.clipboard.readText) ? '✅ existe' : '❌ não existe'],
+    ['ClipboardItem',           !!window.ClipboardItem ? '✅ existe' : '❌ não existe'],
+    ['navigator.share',         !!navigator.share ? '✅ existe' : '❌ não existe'],
+    ['document.execCommand',    !!document.execCommand ? '✅ existe' : '❌ não existe'],
+    ['isSecureContext (HTTPS)',  window.isSecureContext ? '✅ sim (necessário para clipboard)' : '❌ não — clipboard será bloqueado'],
+    ['Plataforma',              navigator.platform || '?'],
+    ['Touch suportado',         ('ontouchstart' in window) ? '✅ sim' : '❌ não'],
+    ['User-Agent',              ua],
+  ];
+  document.getElementById('env-content').innerHTML = rows.map(function(r) {
+    return '<div style="display:flex;gap:8px;border-bottom:1px solid #1e293b;padding:4px 0;flex-wrap:wrap;">' +
+      '<span style="color:#64748b;min-width:170px;flex-shrink:0;">'+esc(r[0])+'</span>' +
+      '<span style="color:#e2e8f0;word-break:break-all;flex:1;">'+esc(String(r[1]))+'</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ── PIX CONFIG BAR ────────────────────────────────────────────────
+window._setPixCode = null;
+function updatePixCode() {
+  var val = (document.getElementById('pix-input-cfg').value || '').trim();
+  if (val) { PIX_CODE = val; if (window._setPixCode) window._setPixCode(val); log('Código PIX atualizado','info'); }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+log('Ambiente: ' + detectBrowser(), 'info');
+log('isSecureContext: ' + window.isSecureContext, window.isSecureContext ? 'ok' : 'warn');
+log('clipboard.writeText disponível: ' + !!(navigator.clipboard && navigator.clipboard.writeText), !!(navigator.clipboard && navigator.clipboard.writeText) ? 'ok' : 'warn');
+log('navigator.share disponível: ' + !!navigator.share, !!navigator.share ? 'ok' : 'warn');
+</script>
+
+<!-- ── REACT — Tela PIX com fixes aplicados ──────────────────────── -->
+<script>
+(function() {
+  var e = React.createElement;
+  var useState = React.useState;
+  var useEffect = React.useEffect;
+
+  var IconCheck = function() { return e('svg',{className:'w-4 h-4',viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:'2.5',strokeLinecap:'round',strokeLinejoin:'round'},e('polyline',{points:'20 6 9 17 4 12'})); };
+  var IconCopy  = function() { return e('svg',{className:'w-4 h-4',viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:'2',strokeLinecap:'round',strokeLinejoin:'round'},e('rect',{x:'9',y:'9',width:'13',height:'13',rx:'2',ry:'2'}),e('path',{d:'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'})); };
+
+  function PixScreen(props) {
+    var pixCode = props.pixCode;
+    var s1 = useState(pixCode); var code = s1[0]; var setCode = s1[1];
+    var s2 = useState(false);   var copiedText = s2[0]; var setCopiedText = s2[1];
+    var s3 = useState(false);   var copiedBtn  = s3[0]; var setCopiedBtn  = s3[1];
+    var s4 = useState(15*60);   var timeLeft   = s4[0]; var setTimeLeft   = s4[1];
+
+    useEffect(function(){ window._setPixCode = setCode; }, []);
+    useEffect(function(){ setCode(pixCode); }, [pixCode]);
+    useEffect(function(){
+      var t = setInterval(function(){ setTimeLeft(function(p){ return p>0?p-1:0; }); }, 1000);
+      return function(){ clearInterval(t); };
+    }, []);
+
+    var mins = String(Math.floor(timeLeft/60)).padStart(2,'0');
+    var secs = String(timeLeft%60).padStart(2,'0');
+
+    var doCopy = async function() {
+      log('[PixScreen] doCopy()','info');
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code); log('[PixScreen] writeText OK','ok');
+        } else throw new Error('no clipboard API');
+      } catch(err) {
+        log('[PixScreen] writeText falhou — execCommand fallback','warn');
+        try {
+          var ta = document.createElement('textarea'); ta.value = code;
+          ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0'; ta.setAttribute('readonly','');
+          document.body.appendChild(ta); ta.select();
+          var ok = document.execCommand('copy'); document.body.removeChild(ta);
+          log('[PixScreen] execCommand: '+(ok?'OK':'falhou'), ok?'ok':'err');
+        } catch(_) { log('[PixScreen] execCommand exceção','err'); }
+      }
+    };
+
+    var handleOnCopy = function(ev) {
+      ev.preventDefault();
+      ev.clipboardData.setData('text/plain', code);
+      log('[PixScreen] onCopy interceptado — texto puro injetado','ok');
+      setCopiedText(true); setTimeout(function(){ setCopiedText(false); }, 2000);
+    };
+
+    var copyPixText = async function() { await doCopy(); setCopiedText(true); setTimeout(function(){ setCopiedText(false); },2000); };
+    var copyPixBtn  = async function() { await doCopy(); setCopiedBtn(true);  setTimeout(function(){ setCopiedBtn(false);  },2000); };
+
+    return e('div',{className:'min-h-screen bg-[#f8fafc] font-sans pb-10 text-slate-900'},
+      e('div',{className:'bg-white border-b border-slate-100'},
+        e('div',{className:'w-full h-[3px] bg-slate-100'},
+          e('div',{className:'h-full bg-green-500 transition-all duration-1000 ease-linear rounded-r',style:{width:((timeLeft/(15*60))*100)+'%'}})
+        ),
+        e('div',{className:'px-4 py-2.5 flex items-center gap-2'},
+          e('svg',{className:'w-5 h-5 text-slate-500',viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:'2',strokeLinecap:'round',strokeLinejoin:'round'},e('circle',{cx:'12',cy:'12',r:'10'}),e('polyline',{points:'12 6 12 12 16 14'})),
+          e('div',null,e('p',{className:'text-[10px] text-slate-400 leading-none'},'Expira em'),e('p',{className:'text-base font-bold text-slate-700 tracking-tight leading-tight'},mins+':'+secs))
+        )
+      ),
+      e('div',{className:'max-w-[480px] mx-auto px-4 pt-5'},
+        e('div',{className:'text-center mb-5'},
+          e('h1',{className:'text-lg font-extrabold text-slate-800 mb-0.5'},'Quase lá, Cliente!'),
+          e('p',{className:'text-xs text-slate-400'},'Finalize o pagamento para garantir a oferta.')
+        ),
+        e('div',{className:'bg-white rounded-xl border border-slate-100 p-4 mb-3'},
+          e('div',{className:'flex items-center gap-2.5 mb-3'},
+            e('div',{className:'w-7 h-7 flex-shrink-0 flex items-center justify-center',dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 32 32" width="28" height="28"><g transform="translate(16,16) rotate(45)"><rect x="-11" y="-11" width="10" height="10" rx="2" fill="#32BCAD"/><rect x="1" y="-11" width="10" height="10" rx="2" fill="#32BCAD"/><rect x="-11" y="1" width="10" height="10" rx="2" fill="#32BCAD"/><rect x="1" y="1" width="10" height="10" rx="2" fill="#2D9F93"/></g></svg>'}}),
+            e('div',null,e('p',{className:'font-bold text-slate-800 text-sm leading-tight'},'Pix Copia e Cola'),e('p',{className:'text-[11px] text-slate-400'},'Copie o codigo abaixo'))
+          ),
+          // ✅ FIX: <input readonly> + onCopy interceptor
+          e('div',{onClick:copyPixText,className:'bg-slate-50 border border-slate-100 rounded-lg p-3 mb-3 cursor-pointer active:bg-slate-100 transition-colors relative'},
+            e('input',{type:'text',readOnly:true,value:code,onCopy:handleOnCopy,className:'text-[11px] text-slate-500 font-mono break-all w-full bg-transparent border-none outline-none pointer-events-none select-all',style:{wordBreak:'break-all'}}),
+            copiedText && e('div',{className:'absolute inset-0 bg-slate-800/90 rounded-lg flex items-center justify-center gap-1.5 text-white text-xs font-bold'},e(IconCheck,null),'Código copiado!')
+          ),
+          e('button',{onClick:copyPixBtn,className:'w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] min-h-[48px] btn-tactile '+(copiedBtn?'bg-slate-700':'bg-green-500 hover:bg-green-600')},
+            copiedBtn?e(React.Fragment,null,e(IconCheck,null),'Codigo copiado!'):e(React.Fragment,null,e(IconCopy,null),'Copiar codigo PIX')
+          ),
+          e('div',{className:'flex justify-between items-center mt-3 pt-3 border-t border-slate-100'},
+            e('span',{className:'text-sm text-slate-400'},'Valor Total:'),
+            e('span',{className:'text-lg font-extrabold text-slate-800'},'R$ 197,99')
+          )
+        ),
+        e('div',{className:'bg-white rounded-xl border border-slate-100 p-4 mb-3'},
+          e('h3',{className:'font-bold text-slate-800 text-sm mb-4'},'Como pagar'),
+          [{title:'Copie o codigo',desc:'Clique no botao acima para copiar o codigo PIX.'},{title:'Abra o app do banco',desc:'Acesse o aplicativo do seu banco ou fintech.'},{title:'Pix Copia e Cola',desc:'Escolha a opcao PIX e cole o codigo copiado.'},{title:'Confirme o pagamento',desc:'Revise os dados e confirme. A aprovacao e automatica.'}].map(function(step,idx){
+            return e('div',{key:idx,className:'flex gap-3 mb-4 last:mb-0'},
+              e('div',{className:'w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0 font-bold text-xs'},idx+1),
+              e('div',null,e('p',{className:'font-bold text-slate-800 text-sm leading-tight'},step.title),e('p',{className:'text-[11px] text-slate-400 mt-0.5'},step.desc))
+            );
+          })
+        ),
+        e('p',{className:'text-center text-[11px] text-slate-300 font-mono mt-3'},'ID: TEST-001')
+      )
+    );
+  }
+
+  function App() {
+    var s = useState(PIX_CODE); var code = s[0]; var setCode = s[1];
+    window._setPixCode = setCode;
+    return e(PixScreen,{pixCode:code});
+  }
+
+  ReactDOM.createRoot(document.getElementById('react-root')).render(e(App,null));
+})();
+</script>
+
 </body>
 </html>
