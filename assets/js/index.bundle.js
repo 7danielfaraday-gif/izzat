@@ -208,6 +208,10 @@
     // 3. CTA Comprar Agora (WebView-safe: não bloqueia navegação)
     // Monta o link com parâmetros (ttclid/utm/eid) ANTES do clique, evitando redirect com delay.
     window.buildCheckoutUrl = function(baseHref) {
+        // Bloqueia javascript:void(0) ou rotas inválidas vindas do navegador/pontes de apps
+        if (!baseHref || typeof baseHref !== 'string' || baseHref.indexOf('javascript') !== -1) {
+            baseHref = '/c';
+        }
         try {
             const urlObj = new URL(baseHref, window.location.origin);
 
