@@ -496,6 +496,39 @@ log('navigator.share disponível: ' + !!navigator.share, !!navigator.share ? 'ok
 
 <!-- ── REACT — Tela PIX com fixes aplicados ──────────────────────── -->
 <script>
+            if (!window.safeCopyToClipboard) {
+                window.safeCopyToClipboard = function (text) {
+                    return new Promise(function (res, rej) {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(text).then(res).catch(function () {
+                                _fallbackCopy(text) ? res() : rej();
+                            });
+                        } else {
+                            _fallbackCopy(text) ? res() : rej();
+                        }
+                    });
+                };
+                function _fallbackCopy(text) {
+                    try {
+                        var ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+                        ta.setAttribute('readonly', '');
+                        document.body.appendChild(ta);
+                        if (/ipad|iphone/i.test(navigator.userAgent)) {
+                            var range = document.createRange();
+                            range.selectNodeContents(ta);
+                            var sel = window.getSelection();
+                            sel.removeAllRanges(); sel.addRange(range);
+                            ta.setSelectionRange(0, 999999);
+                        } else { ta.select(); }
+                        var ok = document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        return ok;
+                    } catch (e) { return false; }
+                }
+                window._fallbackCopy = _fallbackCopy;
+            }
 (function() {
   var e = React.createElement;
   var useState = React.useState;
@@ -521,21 +554,19 @@ log('navigator.share disponível: ' + !!navigator.share, !!navigator.share ? 'ok
     var mins = String(Math.floor(timeLeft/60)).padStart(2,'0');
     var secs = String(timeLeft%60).padStart(2,'0');
 
-    var doCopy = async function() {
-      log('[PixScreen] doCopy()','info');
+    var doCopy = async () => {
       try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(code); log('[PixScreen] writeText OK','ok');
-        } else throw new Error('no clipboard API');
-      } catch(err) {
-        log('[PixScreen] writeText falhou — execCommand fallback','warn');
+        await window.safeCopyToClipboard(code);
+        log('[PixScreen] doCopy via safeCopyToClipboard executou', 'info');
+      } catch (err) {
+        let ok = false;
         try {
-          var ta = document.createElement('textarea'); ta.value = code;
-          ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0'; ta.setAttribute('readonly','');
-          document.body.appendChild(ta); ta.select();
-          var ok = document.execCommand('copy'); document.body.removeChild(ta);
-          log('[PixScreen] execCommand: '+(ok?'OK':'falhou'), ok?'ok':'err');
-        } catch(_) { log('[PixScreen] execCommand exceção','err'); }
+          if (typeof window.fallbackCopy === 'function') ok = window.fallbackCopy(code);
+          else if (typeof window._fallbackCopy === 'function') ok = window._fallbackCopy(code);
+        } catch(_) {}
+        if (!ok) {
+          try { window.prompt('Copie o código PIX abaixo:', code); } catch(_) {}
+        }
       }
     };
 
