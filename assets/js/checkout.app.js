@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', function(){
  name: ACTIVE_PRODUCT.title || "Produto", 
  originalPrice: (ACTIVE_PRODUCT.prices && ACTIVE_PRODUCT.prices.original) || 399.90, 
  price: (ACTIVE_PRODUCT.prices && (ACTIVE_PRODUCT.prices.checkout || ACTIVE_PRODUCT.prices.landing)) || 197.99, 
- image: (ACTIVE_PRODUCT.images && ACTIVE_PRODUCT.images[0] && ACTIVE_PRODUCT.images[0].src) || "/assets/img/01.webp", 
+ image: (ACTIVE_PRODUCT.checkout && ACTIVE_PRODUCT.checkout.image) || (ACTIVE_PRODUCT.images && ACTIVE_PRODUCT.images[0] && ACTIVE_PRODUCT.images[0].src) || "/assets/img/01.webp", 
  id: (ACTIVE_PRODUCT.tracking && ACTIVE_PRODUCT.tracking.content_id) || ACTIVE_PRODUCT.slug || "product-default",
  slug: ACTIVE_PRODUCT.slug || "",
  checkout: ACTIVE_PRODUCT.checkout || {}
@@ -203,10 +203,9 @@ return { min: 4, max: 7 };
  const icId = claimCheckoutOpenEvent('InitiateCheckout');
  if (icId) trackEvent('InitiateCheckout', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, event_id: icId }); 
  
-const analyticsTimer = setTimeout(() => { if (!isLabMode() && window.loadAnalytics) window.loadAnalytics(); }, 3500);
  const timerInterval = setInterval(() => { setTimeLeft(prev => prev > 0 ? prev - 1 : 0); }, 1000);
 
- return () => { clearTimeout(analyticsTimer); clearInterval(timerInterval); }
+ return () => { clearInterval(timerInterval); }
  }, []);
 
  useEffect(() => { 
@@ -462,7 +461,7 @@ e("img", { src: "/assets/img/logo.webp", alt: "Logo", className: "h-8 w-auto obj
  e("div", { className: "max-w-[480px] mx-auto p-4 pt-6 space-y-4 " },
  e("div", { className: "space-y-4 " },
  e("div", { className: "bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-5 flex gap-4 border border-slate-100 items-center relative overflow-hidden group" },
- e("div", { className: "absolute top-0 left-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow-sm tracking-wide" }, "OFERTA TIKTOK"),
+ e("div", { className: "absolute top-0 left-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow-sm tracking-wide" }, CHECKOUT_TEXT.offer_badge || "OFERTA TIKTOK"),
  e("div", { className: "w-24 h-24 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 p-2 shadow-inner" }, e("img", { src: PRODUCT_INFO.image, className: "w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-500", alt: PRODUCT_INFO.name, loading: "eager", decoding: "async", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/" + String(PRODUCT_INFO.image || '').replace(/^\/+/, ''); } } catch(e) {} } })),
  e("div", {className: "flex-1 min-w-0 mt-2"},
  e("h3", { className: "text-sm font-bold text-slate-800 leading-snug line-clamp-2 mb-1" }, PRODUCT_INFO.name),
@@ -590,8 +589,9 @@ const activeData = customerData || {};
 const firstName = activeData.firstName || 'Cliente';
 const transactionId = activeData.transactionId || 'ERR_NO_ID';
 
-const effectivePixCode = (pixCode && String(pixCode).trim()) ? String(pixCode).trim() : DEFAULT_CODIGO_PIX_COPIA_COLA;
-let effectiveQrUrl = (typeof qrCodeUrl === 'string' && qrCodeUrl.trim()) ? qrCodeUrl.trim() : DEFAULT_URL_IMAGEM_QRCODE;
+const effectivePixCode = (typeof pixCode === 'string' && String(pixCode).trim()) ? String(pixCode).trim() : '';
+const pixConfigured = !!effectivePixCode;
+let effectiveQrUrl = (typeof qrCodeUrl === 'string' && qrCodeUrl.trim()) ? qrCodeUrl.trim() : '';
 
 // Normaliza URLs relativas (ex: 'assets/img/qrcode.webp') para não quebrar em /checkout/
 try {
@@ -604,14 +604,16 @@ effectiveQrUrl = '/' + String(effectiveQrUrl).replace(/^\/+/, '');
 } catch(e) {}
 
 const generatedQrUrl = useMemo(() => {
-return 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=0&data=' + encodeURIComponent(effectivePixCode);
+return pixConfigured
+? 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=0&data=' + encodeURIComponent(effectivePixCode)
+: '';
 }, [effectivePixCode]);
 
-const [qrImageSrc, setQrImageSrc] = useState(generatedQrUrl);
+const [qrImageSrc, setQrImageSrc] = useState(generatedQrUrl || effectiveQrUrl || '');
 
 useEffect(() => {
-setQrImageSrc(generatedQrUrl);
-}, [generatedQrUrl]);
+setQrImageSrc(generatedQrUrl || effectiveQrUrl || '');
+}, [generatedQrUrl, effectiveQrUrl]);
 
 useEffect(() => {
 let cancelled = false;
@@ -664,6 +666,7 @@ return () => { clearTimeout(step1); clearTimeout(step2); clearTimeout(step3); };
 }, [transactionId]);
 
 const doCopy = async () => {
+if (!pixConfigured) return;
 try {
 await window.safeCopyToClipboard(effectivePixCode);
 } catch (err) {
@@ -693,6 +696,7 @@ setTimeout(() => setCopiedText(false), 2000);
 };
 
 const copyPixBtn = async () => {
+if (!pixConfigured) return;
 await doCopy();
 setCopiedBtn(true);
 trackEvent('ClickButton', { button_name: 'copy_pix_code', content_name: 'Cópia PIX' });
@@ -758,13 +762,13 @@ e("p", {className: "text-[11px] text-slate-400"}, "Copie o codigo abaixo")
 ),
 
 // Code box (clicável para copiar)
-e("div", {onClick: copyPixText, className: "bg-slate-50 border border-slate-100 rounded-lg p-3 mb-3 cursor-pointer active:bg-slate-100 transition-colors relative"},
-e("p", {className: "text-[11px] text-slate-500 font-mono break-all leading-relaxed select-all"}, effectivePixCode),
+e("div", {onClick: pixConfigured ? copyPixText : undefined, className: `bg-slate-50 border border-slate-100 rounded-lg p-3 mb-3 transition-colors relative ${pixConfigured ? 'cursor-pointer active:bg-slate-100' : 'cursor-not-allowed opacity-70'}`},
+e("p", {className: "text-[11px] text-slate-500 font-mono break-all leading-relaxed select-all"}, pixConfigured ? effectivePixCode : "PIX ainda nao configurado para este produto."),
 copiedText && e("div", {className: "absolute inset-0 bg-slate-800/90 rounded-lg flex items-center justify-center gap-1.5 text-white text-xs font-bold"}, e(Icons.Check, {className: "w-3.5 h-3.5"}), "Código copiado!")
 ),
 
 // Copy button
-e("button", {onClick: copyPixBtn, className: `w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] min-h-[48px] ${copiedBtn ? 'bg-slate-700' : 'bg-green-500 hover:bg-green-600'} btn-tactile`},
+e("button", {onClick: copyPixBtn, disabled: !pixConfigured, className: `w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] min-h-[48px] ${!pixConfigured ? 'bg-slate-300 cursor-not-allowed' : (copiedBtn ? 'bg-slate-700' : 'bg-green-500 hover:bg-green-600')} btn-tactile`},
 copiedBtn ? e(React.Fragment, null, e(Icons.Check, {className: "w-4 h-4"}), "Codigo copiado!") : e(React.Fragment, null, e(Icons.Copy, {className: "w-4 h-4"}), "Copiar codigo PIX")
 ),
 
@@ -814,10 +818,13 @@ e("span", {className: "font-bold text-slate-800 text-sm"}, "Prefere pagar com QR
 e("svg", {className: `w-5 h-5 text-slate-500 transition-transform ${showQrCode ? 'rotate-180' : ''}`, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, e("polyline", {points: "6 9 12 15 18 9"}))
 ),
 showQrCode && e("div", {className: "mt-4 pt-4 border-t border-slate-100"},
+qrImageSrc
+? e(React.Fragment, null,
 e("div", {className: "mx-auto w-[190px] bg-white rounded-2xl border border-slate-200 p-2.5 shadow-sm"},
 e("img", { src: qrImageSrc, alt: "QR Code PIX", className: "w-full h-full object-contain", loading: "lazy", decoding: "async", onError: (ev) => { try { const img = ev.target; if (img.dataset.fallback === '1') return; img.dataset.fallback = '1'; if (effectiveQrUrl) img.src = effectiveQrUrl; } catch(e) {} } })
 ),
-e("p", {className: "text-center text-[12px] text-slate-500 mt-3"}, "Aponte a camera do app do banco")
+e("p", {className: "text-center text-[12px] text-slate-500 mt-3"}, "Aponte a camera do app do banco"))
+: e("div", {className: "rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-semibold text-amber-700"}, "Configure o PIX deste produto no painel para liberar o QR Code.")
 )
 ),
 
@@ -847,7 +854,14 @@ e("p", {className: "text-center text-[11px] text-slate-300 font-mono mt-3"}, "ID
  function App() {
  const [screen, setScreen] = useState('checkout');
  const [customerData, setCustomerData] = useState(null);
- const [pixConfig, setPixConfig] = useState({ pixCode: DEFAULT_CODIGO_PIX_COPIA_COLA, qrCodeUrl: DEFAULT_URL_IMAGEM_QRCODE });
+ const [pixConfig, setPixConfig] = useState({
+ pixCode: ACTIVE_PRODUCT && ACTIVE_PRODUCT.pix && Object.prototype.hasOwnProperty.call(ACTIVE_PRODUCT.pix, 'pix_code')
+ ? String(ACTIVE_PRODUCT.pix.pix_code || '')
+ : DEFAULT_CODIGO_PIX_COPIA_COLA,
+ qrCodeUrl: ACTIVE_PRODUCT && ACTIVE_PRODUCT.pix && Object.prototype.hasOwnProperty.call(ACTIVE_PRODUCT.pix, 'qrcode_url')
+ ? (ACTIVE_PRODUCT.pix.qrcode_url === null ? '' : String(ACTIVE_PRODUCT.pix.qrcode_url || ''))
+ : DEFAULT_URL_IMAGEM_QRCODE
+ });
  
  useEffect(() => {
  const skeleton = document.getElementById('skeleton-loader');

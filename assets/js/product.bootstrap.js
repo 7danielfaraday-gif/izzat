@@ -50,6 +50,7 @@
         'Pagamento processado com seguranca. 1 ano de garantia do fabricante e envio para todo o Brasil.',
     },
     checkout: {
+      image: '/assets/img/01.webp',
       offer_badge: 'OFERTA TIKTOK',
       guarantee_title: 'Satisfacao garantida',
       guarantee_text: 'Se nao gostar, devolvemos seu dinheiro em ate 7 dias. Sem burocracia.',
@@ -213,6 +214,9 @@
           };
         })
       : DEFAULT_PRODUCT.images.map(function (item) { return { ...item }; });
+    merged.checkout.image = hasText(merged.checkout.image)
+      ? normalizePath(merged.checkout.image, '')
+      : '';
     merged.links = buildLinks(merged.slug);
     return merged;
   }

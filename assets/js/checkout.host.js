@@ -7,7 +7,9 @@
 
   function renderHost(product) {
     if (!product) return;
-    const image = Array.isArray(product.images) && product.images[0] ? product.images[0].src : '/assets/img/01.webp';
+    const image = product.checkout && product.checkout.image
+      ? product.checkout.image
+      : (Array.isArray(product.images) && product.images[0] ? product.images[0].src : '/assets/img/01.webp');
     document.title = 'Checkout - ' + (product.title || 'Produto');
     document.querySelectorAll('.static-title').forEach(function (element) {
       element.textContent = product.title || '';

@@ -190,6 +190,10 @@ function hasText(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function hasOwn(value, key) {
+  return !!value && Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function normalizeCurrency(value, fallback = 0) {
   if (typeof value === 'number' && Number.isFinite(value)) return Number(value);
   if (typeof value === 'string') {
@@ -338,6 +342,7 @@ function buildDefaultProduct(legacyPix = null) {
         'Pagamento processado com seguranca. 1 ano de garantia do fabricante e envio para todo o Brasil.',
     },
     checkout: {
+      image: '/assets/img/01.webp',
       offer_badge: 'OFERTA TIKTOK',
       guarantee_title: 'Satisfacao garantida',
       guarantee_text: 'Se nao gostar, devolvemos seu dinheiro em ate 7 dias. Sem burocracia.',
@@ -395,7 +400,9 @@ function normalizeProduct(raw, fallbackProduct = null, options = {}) {
   const images = ensureArray(raw && raw.images)
     .map((item) => normalizeImage(item, title))
     .filter(Boolean);
-  const normalizedImages = images.length ? images : fallback.images.map((item) => ({ ...item }));
+  const normalizedImages = images.length
+    ? images
+    : (hasOwn(raw, 'images') ? [] : fallback.images.map((item) => ({ ...item })));
 
   const visibleReviews = ensureArray(raw && raw.visible_reviews)
     .map((review, index) => normalizeReview(review, index))
@@ -419,24 +426,36 @@ function normalizeProduct(raw, fallbackProduct = null, options = {}) {
     .filter(Boolean)
     .sort((a, b) => b.stars - a.stars);
 
+  const defaultCheckoutImage = fallback.checkout && hasText(fallback.checkout.image)
+    ? absolutizeAssetPath(fallback.checkout.image)
+    : ((normalizedImages[0] && normalizedImages[0].src) || (fallback.images[0] && fallback.images[0].src) || '');
+
   const normalized = {
     slug,
     active: raw && raw.active !== undefined ? Boolean(raw.active) : fallback.active,
     is_default: raw && raw.is_default !== undefined ? Boolean(raw.is_default) : fallback.is_default,
     title,
-    short_description: hasText(raw && raw.short_description) ? raw.short_description.trim() : fallback.short_description,
-    seo_description: hasText(raw && raw.seo_description) ? raw.seo_description.trim() : fallback.seo_description,
-    category: hasText(raw && raw.category) ? raw.category.trim() : fallback.category,
-    variant_label: hasText(raw && raw.variant_label) ? raw.variant_label.trim() : fallback.variant_label,
+    short_description: hasOwn(raw, 'short_description')
+      ? (hasText(raw.short_description) ? raw.short_description.trim() : '')
+      : fallback.short_description,
+    seo_description: hasOwn(raw, 'seo_description')
+      ? (hasText(raw.seo_description) ? raw.seo_description.trim() : '')
+      : fallback.seo_description,
+    category: hasOwn(raw, 'category')
+      ? (hasText(raw.category) ? raw.category.trim() : '')
+      : fallback.category,
+    variant_label: hasOwn(raw, 'variant_label')
+      ? (hasText(raw.variant_label) ? raw.variant_label.trim() : '')
+      : fallback.variant_label,
     prices: {
       original: originalPrice,
       landing: landingPrice,
       checkout: checkoutPrice,
-      discount_badge: hasText(pricesOriginal.discount_badge)
-        ? pricesOriginal.discount_badge.trim()
+      discount_badge: hasOwn(pricesOriginal, 'discount_badge')
+        ? (hasText(pricesOriginal.discount_badge) ? pricesOriginal.discount_badge.trim() : '')
         : computeDiscountBadge(originalPrice, landingPrice),
-      discount_text: hasText(pricesOriginal.discount_text)
-        ? pricesOriginal.discount_text.trim()
+      discount_text: hasOwn(pricesOriginal, 'discount_text')
+        ? (hasText(pricesOriginal.discount_text) ? pricesOriginal.discount_text.trim() : '')
         : computeDiscountText(originalPrice, landingPrice),
     },
     stats: {
@@ -447,35 +466,56 @@ function normalizeProduct(raw, fallbackProduct = null, options = {}) {
       rating_breakdown: ratingBreakdown.length ? ratingBreakdown : fallback.stats.rating_breakdown.map((item) => ({ ...item })),
     },
     images: normalizedImages,
-    visible_reviews: visibleReviews.length ? visibleReviews : fallback.visible_reviews.map((item) => ({ ...item })),
-    extra_reviews: extraReviews.length ? extraReviews : fallback.extra_reviews.map((item) => ({ ...item })),
+    visible_reviews: visibleReviews.length
+      ? visibleReviews
+      : (hasOwn(raw, 'visible_reviews') ? [] : fallback.visible_reviews.map((item) => ({ ...item }))),
+    extra_reviews: extraReviews.length
+      ? extraReviews
+      : (hasOwn(raw, 'extra_reviews') ? [] : fallback.extra_reviews.map((item) => ({ ...item }))),
     description: {
-      heading: hasText(descriptionRaw.heading) ? descriptionRaw.heading.trim() : fallback.description.heading,
-      text: hasText(descriptionRaw.text) ? descriptionRaw.text.trim() : fallback.description.text,
-      bullets: bullets.length ? bullets : fallback.description.bullets.map((item) => ({ ...item })),
-      info_title: hasText(descriptionRaw.info_title) ? descriptionRaw.info_title.trim() : fallback.description.info_title,
-      info_text: hasText(descriptionRaw.info_text) ? descriptionRaw.info_text.trim() : fallback.description.info_text,
+      heading: hasOwn(descriptionRaw, 'heading')
+        ? (hasText(descriptionRaw.heading) ? descriptionRaw.heading.trim() : '')
+        : fallback.description.heading,
+      text: hasOwn(descriptionRaw, 'text')
+        ? (hasText(descriptionRaw.text) ? descriptionRaw.text.trim() : '')
+        : fallback.description.text,
+      bullets: bullets.length
+        ? bullets
+        : (hasOwn(descriptionRaw, 'bullets') ? [] : fallback.description.bullets.map((item) => ({ ...item }))),
+      info_title: hasOwn(descriptionRaw, 'info_title')
+        ? (hasText(descriptionRaw.info_title) ? descriptionRaw.info_title.trim() : '')
+        : fallback.description.info_title,
+      info_text: hasOwn(descriptionRaw, 'info_text')
+        ? (hasText(descriptionRaw.info_text) ? descriptionRaw.info_text.trim() : '')
+        : fallback.description.info_text,
     },
     checkout: {
-      offer_badge: hasText(checkoutRaw.offer_badge) ? checkoutRaw.offer_badge.trim() : fallback.checkout.offer_badge,
-      guarantee_title: hasText(checkoutRaw.guarantee_title)
-        ? checkoutRaw.guarantee_title.trim()
+      image: hasOwn(checkoutRaw, 'image')
+        ? (hasText(checkoutRaw.image) ? absolutizeAssetPath(checkoutRaw.image) : '')
+        : defaultCheckoutImage,
+      offer_badge: hasOwn(checkoutRaw, 'offer_badge')
+        ? (hasText(checkoutRaw.offer_badge) ? checkoutRaw.offer_badge.trim() : '')
+        : fallback.checkout.offer_badge,
+      guarantee_title: hasOwn(checkoutRaw, 'guarantee_title')
+        ? (hasText(checkoutRaw.guarantee_title) ? checkoutRaw.guarantee_title.trim() : '')
         : fallback.checkout.guarantee_title,
-      guarantee_text: hasText(checkoutRaw.guarantee_text)
-        ? checkoutRaw.guarantee_text.trim()
+      guarantee_text: hasOwn(checkoutRaw, 'guarantee_text')
+        ? (hasText(checkoutRaw.guarantee_text) ? checkoutRaw.guarantee_text.trim() : '')
         : fallback.checkout.guarantee_text,
-      submit_label: hasText(checkoutRaw.submit_label) ? checkoutRaw.submit_label.trim() : fallback.checkout.submit_label,
-      success_title_template: hasText(checkoutRaw.success_title_template)
-        ? checkoutRaw.success_title_template.trim()
+      submit_label: hasOwn(checkoutRaw, 'submit_label')
+        ? (hasText(checkoutRaw.submit_label) ? checkoutRaw.submit_label.trim() : '')
+        : fallback.checkout.submit_label,
+      success_title_template: hasOwn(checkoutRaw, 'success_title_template')
+        ? (hasText(checkoutRaw.success_title_template) ? checkoutRaw.success_title_template.trim() : '')
         : fallback.checkout.success_title_template,
-      success_subtitle: hasText(checkoutRaw.success_subtitle)
-        ? checkoutRaw.success_subtitle.trim()
+      success_subtitle: hasOwn(checkoutRaw, 'success_subtitle')
+        ? (hasText(checkoutRaw.success_subtitle) ? checkoutRaw.success_subtitle.trim() : '')
         : fallback.checkout.success_subtitle,
-      payment_label: hasText(checkoutRaw.payment_label)
-        ? checkoutRaw.payment_label.trim()
+      payment_label: hasOwn(checkoutRaw, 'payment_label')
+        ? (hasText(checkoutRaw.payment_label) ? checkoutRaw.payment_label.trim() : '')
         : fallback.checkout.payment_label,
-      payment_badge: hasText(checkoutRaw.payment_badge)
-        ? checkoutRaw.payment_badge.trim()
+      payment_badge: hasOwn(checkoutRaw, 'payment_badge')
+        ? (hasText(checkoutRaw.payment_badge) ? checkoutRaw.payment_badge.trim() : '')
         : fallback.checkout.payment_badge,
       payment_instructions: ensureArray(checkoutRaw.payment_instructions).length
         ? ensureArray(checkoutRaw.payment_instructions)
@@ -487,39 +527,53 @@ function normalizeProduct(raw, fallbackProduct = null, options = {}) {
               return { title: titleText, desc: descText };
             })
             .filter(Boolean)
-        : fallback.checkout.payment_instructions.map((item) => ({ ...item })),
-      footer_primary: hasText(checkoutRaw.footer_primary)
-        ? checkoutRaw.footer_primary.trim()
+        : (hasOwn(checkoutRaw, 'payment_instructions')
+            ? []
+            : fallback.checkout.payment_instructions.map((item) => ({ ...item }))),
+      footer_primary: hasOwn(checkoutRaw, 'footer_primary')
+        ? (hasText(checkoutRaw.footer_primary) ? checkoutRaw.footer_primary.trim() : '')
         : fallback.checkout.footer_primary,
-      footer_secondary: hasText(checkoutRaw.footer_secondary)
-        ? checkoutRaw.footer_secondary.trim()
+      footer_secondary: hasOwn(checkoutRaw, 'footer_secondary')
+        ? (hasText(checkoutRaw.footer_secondary) ? checkoutRaw.footer_secondary.trim() : '')
         : fallback.checkout.footer_secondary,
     },
     pix: {
-      pix_code: hasText(pixRaw.pix_code) ? pixRaw.pix_code.trim() : fallback.pix.pix_code,
-      qrcode_url: pixRaw.qrcode_url === null
-        ? null
-        : hasText(pixRaw.qrcode_url)
-          ? absolutizeAssetPath(pixRaw.qrcode_url)
-          : fallback.pix.qrcode_url,
+      pix_code: hasOwn(pixRaw, 'pix_code')
+        ? (hasText(pixRaw.pix_code) ? pixRaw.pix_code.trim() : '')
+        : fallback.pix.pix_code,
+      qrcode_url: hasOwn(pixRaw, 'qrcode_url')
+        ? (pixRaw.qrcode_url === null
+            ? null
+            : hasText(pixRaw.qrcode_url)
+              ? absolutizeAssetPath(pixRaw.qrcode_url)
+              : '')
+        : fallback.pix.qrcode_url,
     },
     tracking: {
-      pixel_id: hasText(trackingRaw.pixel_id) ? trackingRaw.pixel_id.trim() : fallback.tracking.pixel_id,
-      capi_access_token: hasText(trackingRaw.capi_access_token)
-        ? trackingRaw.capi_access_token.trim()
+      pixel_id: hasOwn(trackingRaw, 'pixel_id')
+        ? (hasText(trackingRaw.pixel_id) ? trackingRaw.pixel_id.trim() : '')
+        : fallback.tracking.pixel_id,
+      capi_access_token: hasOwn(trackingRaw, 'capi_access_token')
+        ? (hasText(trackingRaw.capi_access_token) ? trackingRaw.capi_access_token.trim() : '')
         : (fallback.tracking.capi_access_token || ''),
-      capi_test_code: hasText(trackingRaw.capi_test_code)
-        ? trackingRaw.capi_test_code.trim()
+      capi_test_code: hasOwn(trackingRaw, 'capi_test_code')
+        ? (hasText(trackingRaw.capi_test_code) ? trackingRaw.capi_test_code.trim() : '')
         : (fallback.tracking.capi_test_code || ''),
-      capi_label: hasText(trackingRaw.capi_label) ? trackingRaw.capi_label.trim() : fallback.tracking.capi_label,
-      content_id: hasText(trackingRaw.content_id) ? trackingRaw.content_id.trim() : fallback.tracking.content_id,
-      content_name: hasText(trackingRaw.content_name) ? trackingRaw.content_name.trim() : title,
+      capi_label: hasOwn(trackingRaw, 'capi_label')
+        ? (hasText(trackingRaw.capi_label) ? trackingRaw.capi_label.trim() : '')
+        : slug,
+      content_id: hasOwn(trackingRaw, 'content_id')
+        ? (hasText(trackingRaw.content_id) ? trackingRaw.content_id.trim() : '')
+        : slug,
+      content_name: hasOwn(trackingRaw, 'content_name')
+        ? (hasText(trackingRaw.content_name) ? trackingRaw.content_name.trim() : '')
+        : title,
       content_type: hasText(trackingRaw.content_type)
         ? trackingRaw.content_type.trim()
         : fallback.tracking.content_type,
-      content_category: hasText(trackingRaw.content_category)
-        ? trackingRaw.content_category.trim()
-        : (hasText(raw && raw.category) ? raw.category.trim() : fallback.tracking.content_category),
+      content_category: hasOwn(trackingRaw, 'content_category')
+        ? (hasText(trackingRaw.content_category) ? trackingRaw.content_category.trim() : '')
+        : (hasOwn(raw, 'category') ? (hasText(raw.category) ? raw.category.trim() : '') : fallback.tracking.content_category),
       currency: hasText(trackingRaw.currency) ? trackingRaw.currency.trim().toUpperCase() : fallback.tracking.currency,
       quantity: Math.max(1, Math.round(normalizeCurrency(trackingRaw.quantity, fallback.tracking.quantity || 1))),
     },
