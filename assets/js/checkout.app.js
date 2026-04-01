@@ -597,7 +597,10 @@ let effectiveQrUrl = (typeof qrCodeUrl === 'string' && qrCodeUrl.trim()) ? qrCod
 try {
 if (effectiveQrUrl && typeof effectiveQrUrl === 'string') {
 const isHttp = /^https?:\/\//i.test(effectiveQrUrl);
-if (!isHttp && !effectiveQrUrl.startsWith('/')) {
+const isInlineAsset = /^(?:\/+)?(?:data|blob):/i.test(effectiveQrUrl);
+if (isInlineAsset) {
+effectiveQrUrl = String(effectiveQrUrl).replace(/^\/+(?=(?:data|blob):)/i, '');
+} else if (!isHttp && !effectiveQrUrl.startsWith('/')) {
 effectiveQrUrl = '/' + String(effectiveQrUrl).replace(/^\/+/, '');
 }
 }

@@ -210,6 +210,9 @@ function ensureArray(value) {
 function absolutizeAssetPath(value) {
   if (!hasText(value)) return '';
   const trimmed = value.trim();
+  if (/^(?:\/+)?(?:data|blob):/i.test(trimmed)) {
+    return trimmed.replace(/^\/+(?=(?:data|blob):)/i, '');
+  }
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`;
 }
