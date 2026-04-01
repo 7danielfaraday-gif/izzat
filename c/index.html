@@ -2,7 +2,7 @@
 
 <html lang="pt-BR">
 <head>
-<script>window.__TEST_MODE=new URLSearchParams(window.location.search).has('test_mode');</script>
+<script>(function(){var p=new URLSearchParams(window.location.search);window.__TEST_MODE=p.has('test_mode');window.__LAB_MODE=p.has('lab')||p.get('mode')==='lab'||/^\/lab(?:\/|$)/i.test(window.location.pathname);window.__checkoutEntrySource='direct';window.__currentCheckoutOpenToken='checkout_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);window.__prepareLabSession=window.__prepareLabSession||function(){if(!window.__LAB_MODE||window.__labPrepared)return;window.__labPrepared=true;window.__LAB_NONCE=Date.now().toString(36)+Math.random().toString(36).slice(2,8);function patchStorage(storage){if(!storage)return;try{storage.clear()}catch(e){}try{storage.setItem=function(){}}catch(e){}try{storage.removeItem=function(){}}catch(e){}try{storage.clear=function(){}}catch(e){}try{storage.getItem=function(){return null}}catch(e){}}try{patchStorage(window.localStorage)}catch(e){}try{patchStorage(window.sessionStorage)}catch(e){}try{document.cookie.split(';').forEach(function(cookie){var eq=cookie.indexOf('=');var name=(eq>-1?cookie.slice(0,eq):cookie).trim();if(!name)return;document.cookie=name+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';document.cookie=name+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain='+window.location.hostname+'; SameSite=Lax';if(window.location.hostname.indexOf('.')>-1){document.cookie=name+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.'+window.location.hostname.replace(/^www\\./,'')+'; SameSite=Lax';}})}catch(e){}try{if(window.caches&&typeof window.caches.keys==='function'){window.caches.keys().then(function(keys){keys.forEach(function(key){window.caches.delete(key);});}).catch(function(){})}}catch(e){}try{if(window.indexedDB&&typeof window.indexedDB.databases==='function'){window.indexedDB.databases().then(function(dbs){(dbs||[]).forEach(function(db){if(db&&db.name){try{window.indexedDB.deleteDatabase(db.name)}catch(err){}}});}).catch(function(){})}}catch(e){}try{if(navigator.serviceWorker&&typeof navigator.serviceWorker.getRegistrations==='function'){navigator.serviceWorker.getRegistrations().then(function(registrations){registrations.forEach(function(registration){try{registration.unregister()}catch(err){}});}).catch(function(){})}}catch(e){}try{var labUrl=new URL(window.location.href);labUrl.searchParams.set('_lab_nonce',window.__LAB_NONCE);history.replaceState(history.state,document.title,labUrl.pathname+labUrl.search+labUrl.hash)}catch(e){}};if(window.__LAB_MODE)window.__prepareLabSession();})();</script>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" name="viewport"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -10,8 +10,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <link crossorigin="" href="https://analytics.tiktok.com" rel="preconnect"/>
 <link href="//analytics.tiktok.com" rel="dns-prefetch"/>
+<script defer="" src="/assets/js/product.bootstrap.js"></script>
 <title>Checkout - Fritadeira Elétrica Forno Oven 12L</title>
-<link as="image" fetchpriority="high" href="../assets/img/01.webp" rel="preload"/>
+<link as="image" fetchpriority="high" href="/assets/img/01.webp" rel="preload"/>
 <link href="https://www.googletagmanager.com" rel="dns-prefetch"/>
 <link href="https://viacep.com.br" rel="dns-prefetch"/>
 <style>
@@ -22,7 +23,7 @@
      Ter ttq.load() + ttq.page() aqui causava LandingPageView/Pageview duplicados
      pois o SDK da LP continuava ativo durante a navegação SPA para /c/.
 -->
-<script>if(!window.__TEST_MODE){setTimeout(function(){(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];if(y&&y.parentNode)y.parentNode.insertBefore(t,y);else document.head.appendChild(t);})(window,document,"clarity","script","vyr9otnkc7")}, 3500);}</script>
+<script>if(!window.__TEST_MODE&&!window.__LAB_MODE){setTimeout(function(){(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];if(y&&y.parentNode)y.parentNode.insertBefore(t,y);else document.head.appendChild(t);})(window,document,"clarity","script","vyr9otnkc7")}, 3500);}</script>
 <script>
         // Fallback robusto para libs locais (muito comum quebrar em rotas tipo /checkout/ no in-app do TikTok)
         window.__loadScript = window.__loadScript || function(src){
@@ -355,15 +356,40 @@
             await fetch('/api/tiktok-events', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: event, event_id: eventId, properties: properties, user: user })
+                body: JSON.stringify({
+                    event: event,
+                    event_id: eventId,
+                    properties: properties,
+                    user: user,
+                    product_slug: window.__PRODUCT_SLUG || (window.__PRODUCT_CONFIG && window.__PRODUCT_CONFIG.slug) || ''
+                })
             });
         } catch(e) {
             if (DEBUG_MODE) console.error('[sendCAPI]', e);
         }
     }
 
+    function shouldSkipDuplicateTikTokEvent(event, eventId, ttlMs) {
+        try {
+            if (!event || !eventId) return false;
+            var now = Date.now();
+            var ttl = typeof ttlMs === 'number' ? ttlMs : 10 * 60 * 1000;
+            var cache = window.__ttEventDispatchCache = window.__ttEventDispatchCache || {};
+            var cacheKeys = Object.keys(cache);
+            for (var i = 0; i < cacheKeys.length; i++) {
+                var key = cacheKeys[i];
+                if (now - cache[key] > (ttl * 2)) delete cache[key];
+            }
+            var dedupKey = event + '::' + eventId;
+            if (cache[dedupKey] && (now - cache[dedupKey]) < ttl) return true;
+            cache[dedupKey] = now;
+        } catch(e) {}
+        return false;
+    }
+    window.shouldSkipDuplicateTikTokEvent = window.shouldSkipDuplicateTikTokEvent || shouldSkipDuplicateTikTokEvent;
+
     function trackPixel(event, data) {
-        if (window.__TEST_MODE) { console.log('[TEST_MODE] Evento bloqueado:', event, data); return; }
+        if (window.__TEST_MODE || window.__LAB_MODE) { console.log('[TEST_MODE/LAB_MODE] Evento bloqueado:', event, data); return; }
         data = data || {};
         requestAnimationFrame(function() {
             Promise.resolve().then(async function() {
@@ -377,6 +403,7 @@
                 finalData = await hashIdentifiers(finalData);
 
                 var eventId = finalData.event_id || generateEventId();
+                if (window.shouldSkipDuplicateTikTokEvent && window.shouldSkipDuplicateTikTokEvent(event, eventId)) return;
 
                 var payload = Object.assign({}, finalData, window.getStoredUTMs(), {
                     external_id: window.getExternalId(),
@@ -395,10 +422,11 @@
                 }
 
                 // CAPI server-side (dupla camada — mesmo event_id para deduplicação)
+                var capiPayload = Object.assign({}, window.PRODUCT_CONTENT || {}, payload);
                 sendCAPI(
                     event,
                     eventId,
-                    Object.assign({}, window.PRODUCT_CONTENT || {}, { event_source_url: getTikTokEventSourceUrl() }),
+                    capiPayload,
                     {
                         email:       finalData.email || undefined,
                         phone_number: finalData.phone || undefined,
@@ -421,7 +449,7 @@
 
  
 
-    const PRODUCT_CONTENT = { 
+    const PRODUCT_CONTENT = window.PRODUCT_CONTENT || { 
         content_type: 'product', 
         contents: [{ 
             content_id: 'AFON-12L-BI', 
@@ -436,10 +464,10 @@
         value: 197.99, 
         currency: 'BRL' 
     };
-    window.PRODUCT_CONTENT = PRODUCT_CONTENT;
+    window.PRODUCT_CONTENT = window.PRODUCT_CONTENT || PRODUCT_CONTENT;
 
     function loadAnalytics() {
-        if(window.__TEST_MODE || window.analyticsLoaded) return;
+        if(window.__TEST_MODE || window.__LAB_MODE || window.analyticsLoaded) return;
         window.analyticsLoaded = true;
         var s = document.createElement('script'); 
         s.async = true; 
@@ -628,13 +656,13 @@
 <div id="skeleton-loader" style="min-height: 100dvh; background: #f8fafc;">
 <div class="progress-bar" style="width: 25%;"></div>
 <div class="static-nav">
-<img alt="Logo" decoding="async" loading="lazy" onerror="this.onerror=null; this.src='/assets/img/logo.webp'" src="../assets/img/logo.webp" style="height: 32px; width: auto; object-fit: contain;"/>
+<img alt="Logo" decoding="async" loading="lazy" onerror="this.onerror=null; this.src='/assets/img/logo.webp'" src="/assets/img/logo.webp" style="height: 32px; width: auto; object-fit: contain;"/>
 </div>
 <div class="static-container">
 <div class="static-left-col">
 <div class="static-card">
 <div class="static-badge">OFERTA TIKTOK</div>
-<div class="static-img-box"><img alt="Fritadeira" class="static-img" decoding="async" height="80" loading="eager" src="../assets/img/01.webp" width="80"/></div>
+<div class="static-img-box"><img alt="Fritadeira" class="static-img" decoding="async" height="80" loading="eager" src="/assets/img/01.webp" width="80"/></div>
 <div class="static-info">
 <h3 class="static-title">Fritadeira Elétrica Forno Oven 12L Mondial AFON-12L-BI</h3>
 <div><span class="static-old-price">De R$ 399,90</span><span class="static-new-price">Por R$ 197,99</span></div>
@@ -655,6 +683,7 @@
 </div>
 </div>
 <div id="checkout-root"></div>
+<script defer="" src="/assets/js/checkout.host.js"></script>
 <script defer="" src="/assets/js/checkout.app.js"></script>
 <script defer src="/assets/js/metrics.ping.js"></script>
 <script>

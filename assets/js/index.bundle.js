@@ -1,25 +1,36 @@
-// ==================================================
+﻿// ==================================================
     // 1. TRACKING ZARAZ + TIKTOK TURBO (BEACON + FINGERPRINT)
     // ==================================================
     
     // Dados do Produto
-    const PRODUCT_CONTENT = {
+    const PRODUCT_CONTENT = window.PRODUCT_CONTENT || {
         contents: [{ content_id: 'AFON-12L-BI', id: 'AFON-12L-BI', quantity: 1, price: 197.99, item_price: 197.99 }],
         content_id: 'AFON-12L-BI',
         content_ids: ['AFON-12L-BI'],
-        content_name: 'Fritadeira Elétrica Forno Oven 12L Mondial',
-        description: 'Fritadeira Elétrica Forno Oven 12L Mondial AFON-12L-BI',
+        content_name: 'Fritadeira ElÃ©trica Forno Oven 12L Mondial',
+        description: 'Fritadeira ElÃ©trica Forno Oven 12L Mondial AFON-12L-BI',
         content_type: 'product',
-        category: 'Eletroportáteis',
+        category: 'EletroportÃ¡teis',
         quantity: 1,
         price: 197.99,
         value: 197.99,
         currency: 'BRL'
     };
+    window.PRODUCT_CONTENT = window.PRODUCT_CONTENT || PRODUCT_CONTENT;
+    const LP_VIEW_CONTENT_KEY = '__tt_lp_viewcontent';
+
+    function getProductContent() {
+        return window.PRODUCT_CONTENT || PRODUCT_CONTENT;
+    }
+
+    function getActiveProduct() {
+        return window.__PRODUCT_CONFIG || window.__PRODUCT_DEFAULT || null;
+    }
 
     // --- HELPER FUNCTIONS ---
 
     function setCookie(name, value, days) {
+        if (window.__LAB_MODE) return;
         var expires = "";
         if (days) {
             var date = new Date();
@@ -30,6 +41,7 @@
     }
     
     function getCookie(name) {
+        if (window.__LAB_MODE) return null;
         var nameEQ = name + "=";
         var ca = document.cookie.split(';');
         for(var i=0;i < ca.length;i++) {
@@ -44,7 +56,7 @@
         return 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
     window.generateEventId = generateEventId;
-    // trackViaZaraz será definida mais abaixo (Browser Pixel + CAPI)
+    // trackViaZaraz serÃ¡ definida mais abaixo (Browser Pixel + CAPI)
 
     function getExternalId() {
         let eid = localStorage.getItem('user_external_id');
@@ -89,7 +101,7 @@
         return utms;
     }
 
-    // Contexto Avançado (Fingerprinting Lite)
+    // Contexto AvanÃ§ado (Fingerprinting Lite)
     function getContext() {
         let connection = 'unknown';
         if (navigator.connection) {
@@ -107,7 +119,7 @@
         };
     }
 
-    // --- FUNÇÃO DE DISPARO HÍBRIDA (Browser Pixel + CAPI) ---
+    // --- FUNÃ‡ÃƒO DE DISPARO HÃBRIDA (Browser Pixel + CAPI) ---
     // Leitura do cookie _ttp (TikTok Pixel cookie)
     function getTTP() {
         return (document.cookie.match(/(?:^|;\s*)_ttp=([^;]*)/) || [])[1] || undefined;
@@ -127,7 +139,13 @@
             await fetch('/api/tiktok-events', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: event, event_id: eventId, properties: properties, user: user })
+                body: JSON.stringify({
+                    event: event,
+                    event_id: eventId,
+                    properties: properties,
+                    user: user,
+                    product_slug: window.__PRODUCT_SLUG || (window.__PRODUCT_CONFIG && window.__PRODUCT_CONFIG.slug) || ''
+                })
             });
         } catch(e) {}
     }
@@ -137,7 +155,7 @@
             window.trackPixel(event, data);
             return;
         }
-        if (window.__TEST_MODE) { console.log('[TEST_MODE] Evento bloqueado:', event, data); return; }
+        if (window.__TEST_MODE || window.__LAB_MODE) { console.log('[TEST_MODE/LAB_MODE] Evento bloqueado:', event, data); return; }
         try {
             const savedEmail = localStorage.getItem('user_hashed_email');
             const savedPhone = localStorage.getItem('user_hashed_phone');
@@ -157,8 +175,9 @@
             if (savedPhone && !payload.phone) payload.phone = savedPhone;
 
             var eventId = payload.event_id || window.generateEventId();
+            if (window.shouldSkipDuplicateTikTokEvent && window.shouldSkipDuplicateTikTokEvent(event, eventId)) return;
 
-            // 1. Browser Pixel (com event_id para deduplicação)
+            // 1. Browser Pixel (com event_id para deduplicaÃ§Ã£o)
             if (window.ttq && typeof window.ttq.track === 'function') {
                 if (event !== 'PageView') {
                     try {
@@ -169,11 +188,27 @@
                 }
             }
 
-            // 2. CAPI server-side (dupla camada — mesmo event_id para deduplicação)
+            // 2. CAPI server-side (dupla camada â€” mesmo event_id para deduplicaÃ§Ã£o)
+            var requiresCatalogContent = (event === 'ViewContent' || event === 'AddToCart');
+            var capiProperties = Object.assign(
+                {},
+                requiresCatalogContent ? getProductContent() : {},
+                data || {},
+                { event_source_url: getTikTokEventSourceUrl() }
+            );
+
+            if (!capiProperties.content_id) {
+                if (Array.isArray(capiProperties.contents) && capiProperties.contents[0] && capiProperties.contents[0].content_id) {
+                    capiProperties.content_id = capiProperties.contents[0].content_id;
+                } else if (Array.isArray(capiProperties.content_ids) && capiProperties.content_ids[0]) {
+                    capiProperties.content_id = capiProperties.content_ids[0];
+                }
+            }
+
             sendCAPI(
                 event,
                 eventId,
-                { event_source_url: getTikTokEventSourceUrl() },
+                capiProperties,
                 {
                     email:       payload.email || undefined,
                     phone_number: payload.phone || undefined,
@@ -201,17 +236,45 @@
         saveUTMs();
     });
 
-    // 2. ViewContent — disparado exclusivamente pelo checkout.app.js (React)
-    // para evitar duplicidade: LP + checkout.app ambos acionavam ViewContent com event_ids diferentes.
-    // O checkout.app.js já tem deduplicação por sessionStorage (last_vc_id).
+    // 2. ViewContent da LP (melhor prática para TikTok)
+    // O checkout só dispara ViewContent como fallback em entrada direta.
+    (function triggerLandingViewContent() {
+        if (/^\/c(?:\/|$)/i.test(window.location.pathname)) return;
+        var fireViewContent = function () {
+            try {
+                var now = Date.now();
+                var existing = null;
+                try { existing = JSON.parse(sessionStorage.getItem(LP_VIEW_CONTENT_KEY) || 'null'); } catch (e) {}
+                if (existing && existing.at && (now - existing.at) < (30 * 60 * 1000)) return;
 
-    // 3. CTA Comprar Agora (WebView-safe: não bloqueia navegação)
-    // Monta o link com parâmetros (ttclid/utm/eid) ANTES do clique, evitando redirect com delay.
+                var eventId = generateEventId();
+                try {
+                    sessionStorage.setItem(LP_VIEW_CONTENT_KEY, JSON.stringify({ event_id: eventId, at: now, source: 'lp' }));
+                } catch (e) {}
+
+                trackViaZaraz('ViewContent', {
+                    ...getProductContent(),
+                    event_id: eventId,
+                    content_name: getProductContent().content_name
+                });
+            } catch (e) {}
+        };
+
+        if (typeof window.getProductConfig === 'function') {
+            window.getProductConfig().finally(fireViewContent);
+            return;
+        }
+
+        fireViewContent();
+    })();
+
+    // 3. CTA Comprar Agora (WebView-safe: nÃ£o bloqueia navegaÃ§Ã£o)
+    // Monta o link com parÃ¢metros (ttclid/utm/eid) ANTES do clique, evitando redirect com delay.
     window.buildCheckoutUrl = function(baseHref) {
         try {
             const urlObj = new URL(baseHref, window.location.origin);
 
-            // 1) Mantém parâmetros atuais da URL (UTMs, ttclid etc.)
+            // 1) MantÃ©m parÃ¢metros atuais da URL (UTMs, ttclid etc.)
             const currentParams = new URLSearchParams(window.location.search);
             currentParams.forEach((value, key) => {
                 urlObj.searchParams.set(key, value);
@@ -246,28 +309,43 @@
     (function setupBuyNowButton() {
         const btn = document.getElementById('buy-now') || document.querySelector('.buy-btn');
         if (!btn) return;
+        const baseCheckoutPath = window.__PRODUCT_CHECKOUT_PATH || '/c/';
+        window.__buyNowJsReady = true;
 
-        // Atualiza href uma vez (e sempre que possível, deixa o browser fazer a navegação nativa)
+        // Modo 100% SPA: nunca redireciona por href.
+        btn.href = 'javascript:void(0)';
+
+        // MantÃ©m a URL de checkout com parÃ¢metros em data-attribute.
         try {
-            btn.href = window.buildCheckoutUrl(btn.getAttribute('href') || btn.href);
+            btn.dataset.checkoutTarget = window.buildCheckoutUrl(baseCheckoutPath);
         } catch (e) {}
 
         // Setup SPA Checkout instead of redirecting
         btn.addEventListener('click', (e) => {
-            if (typeof window.spaOpenCheckout === 'function') {
-                e.preventDefault();
-                window.spaOpenCheckout(btn.getAttribute('href') || btn.href);
+            e.preventDefault();
+            if (btn.classList) btn.classList.remove('is-opening');
+            const target = btn.dataset.checkoutTarget || baseCheckoutPath;
+            if (typeof window.spaOpenCheckout === 'function') window.spaOpenCheckout(target);
+
+            const trackAddToCart = () => {
+                try {
+                    trackViaZaraz('AddToCart', {
+                        ...getProductContent(),
+                        event_id: generateEventId()
+                    }, true);
+                } catch (err) {}
+            };
+
+            // Evita custo extra no frame do clique (sensaÃ§Ã£o de "botÃ£o travado")
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(trackAddToCart, { timeout: 1200 });
+            } else {
+                setTimeout(trackAddToCart, 0);
             }
-            try {
-                trackViaZaraz('AddToCart', {
-                    ...PRODUCT_CONTENT,
-                    event_id: generateEventId()
-                }, true);
-            } catch (err) {}
         });
     })();
     // ==================================================
-    // 4. MICRO-CONVERSÕES (NOVO: ALIMENTA O ALGORITMO)
+    // 4. MICRO-CONVERSÃ•ES (NOVO: ALIMENTA O ALGORITMO)
     // ==================================================
 
     // A) Scroll Profundo (Leitura)
@@ -285,7 +363,7 @@
     }, { passive: true });
 
 // ==================================================
-  // 2. FUNÇÕES VISUAIS DA LOJA (UI/UX)
+  // 2. FUNÃ‡Ã•ES VISUAIS DA LOJA (UI/UX)
   // ==================================================
   
   function showTab(tabName) {
@@ -304,25 +382,26 @@
   }
 
   const variantLinks = {
-    'preto': '/c/',
-    'rosa-pink': '/c/',
-    'roxo-claro': '/c/',
-    'rosa-claro': '/c/'
+    'preto': window.__PRODUCT_CHECKOUT_PATH || '/c/',
+    'rosa-pink': window.__PRODUCT_CHECKOUT_PATH || '/c/',
+    'roxo-claro': window.__PRODUCT_CHECKOUT_PATH || '/c/',
+    'rosa-claro': window.__PRODUCT_CHECKOUT_PATH || '/c/'
   };
   const buyBtn = document.querySelector('.buy-btn');
 
   document.addEventListener("DOMContentLoaded", () => {
     
-    // Cronômetro Persistente (Anti-Fake)
+    // CronÃ´metro Persistente (Anti-Fake)
     function startCountdown() {
       const countdownEl = document.getElementById('countdown-timer');
       if (!countdownEl) return;
+      const timerKey = 'offer_timer_' + (window.__PRODUCT_SLUG || 'default');
       
       // Tenta recuperar o tempo do localStorage ou usa 300 (5 min)
-      let savedTime = localStorage.getItem('offer_timer_v4');
+      let savedTime = localStorage.getItem(timerKey);
       let timeLeft = savedTime ? parseInt(savedTime) : 900;
       
-      // Se o tempo acabou ou é inválido, reseta
+      // Se o tempo acabou ou Ã© invÃ¡lido, reseta
       if(isNaN(timeLeft) || timeLeft <= 0) timeLeft = 900;
 
       const updateDisplay = () => {
@@ -335,12 +414,12 @@
 
       const timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
-          // Quando acaba, reinicia discretamente para manter a pressão (loop infinito sutil)
+          // Quando acaba, reinicia discretamente para manter a pressÃ£o (loop infinito sutil)
           timeLeft = 900; 
         } else {
           timeLeft--;
         }
-        localStorage.setItem('offer_timer_v4', timeLeft);
+        localStorage.setItem(timerKey, timeLeft);
         updateDisplay();
       }, 1000);
     }
@@ -364,15 +443,24 @@
     }
 
     // Galeria de Imagens
-    const totalImages = 8;
-    const variantStartIndex = {
-      'preto': 1,
-      'rosa-pink': 2,
-      'roxo-claro': 3,
-      'rosa-claro': 4
-    };
+    const fallbackGallery = [
+      { src: '/assets/img/01.webp', thumbnail: '/assets/img/thumb_01.webp', alt: 'Imagem 1' },
+      { src: '/assets/img/02.webp', thumbnail: '/assets/img/thumb_02.webp', alt: 'Imagem 2' },
+      { src: '/assets/img/03.webp', thumbnail: '/assets/img/thumb_03.webp', alt: 'Imagem 3' },
+      { src: '/assets/img/04.webp', thumbnail: '/assets/img/thumb_04.webp', alt: 'Imagem 4' },
+      { src: '/assets/img/05.webp', thumbnail: '/assets/img/thumb_05.webp', alt: 'Imagem 5' },
+      { src: '/assets/img/06.webp', thumbnail: '/assets/img/thumb_06.webp', alt: 'Imagem 6' },
+      { src: '/assets/img/07.webp', thumbnail: '/assets/img/thumb_07.webp', alt: 'Imagem 7' },
+      { src: '/assets/img/08.webp', thumbnail: '/assets/img/thumb_08.webp', alt: 'Imagem 8' }
+    ];
+    function getGalleryImages() {
+      const runtimeImages = Array.isArray(window.__landingGalleryImages) && window.__landingGalleryImages.length
+        ? window.__landingGalleryImages
+        : (getActiveProduct() && Array.isArray(getActiveProduct().images) && getActiveProduct().images.length ? getActiveProduct().images : fallbackGallery);
+      return runtimeImages;
+    }
     let currentVariant = 'preto';
-    let currentImageIndex = variantStartIndex[currentVariant];
+    let currentImageIndex = 1;
 
     const mainImage = document.getElementById('main-product-image');
     const imageCounter = document.getElementById('image-counter');
@@ -382,7 +470,7 @@
     const viewReviewsBtn = document.querySelector('.add-cart-btn');
     const reviewsSection = document.querySelector('.reviews-section');
     
-    // CORREÇÃO: Remover loader ao carregar imagem
+    // CORREÃ‡ÃƒO: Remover loader ao carregar imagem
     if (mainImage) {
         mainImage.onload = function() {
             const loader = document.getElementById('image-loading');
@@ -390,8 +478,8 @@
         }
     }
 
-    // FIX INP: Otimização do botão "Ver Avaliações"
-    // ⭐️ NOVO: Rastreamento de Micro-Conversão (Click em Avaliações)
+    // FIX INP: OtimizaÃ§Ã£o do botÃ£o "Ver AvaliaÃ§Ãµes"
+    // â­ï¸ NOVO: Rastreamento de Micro-ConversÃ£o (Click em AvaliaÃ§Ãµes)
     if (viewReviewsBtn && reviewsSection) {
       viewReviewsBtn.addEventListener('click', (e) => {
         
@@ -400,7 +488,7 @@
             window.trackViaZaraz('Check_Reviews', { event_id: window.generateEventId() });
         }
 
-        // Envolve em requestAnimationFrame para não bloquear o clique inicial
+        // Envolve em requestAnimationFrame para nÃ£o bloquear o clique inicial
         requestAnimationFrame(() => {
             // FIX: Alterado de 'smooth' para 'auto' para garantir scroll em mobile (TikTok Browser)
             reviewsSection.scrollIntoView({ behavior: 'auto', block: 'start' });
@@ -409,9 +497,8 @@
       }, { passive: true });
     }
 
-    const padZero = n => n.toString().padStart(2, '0');
-
     function createImageDots() {
+      const totalImages = getGalleryImages().length;
       imageDots.innerHTML = '';
       for (let i = 1; i <= totalImages; i++) {
         const dot = document.createElement('div');
@@ -426,22 +513,22 @@
     }
     
    function createThumbnails() {
+      const galleryImages = getGalleryImages();
       imageThumbnails.innerHTML = '';
-      for (let i = 1; i <= totalImages; i++) {
+      for (let i = 0; i < galleryImages.length; i++) {
         const thumbWrapper = document.createElement('div');
         thumbWrapper.classList.add('thumbnail');
-        thumbWrapper.dataset.index = i;
+        thumbWrapper.dataset.index = i + 1;
         
         const thumbImg = document.createElement('img');
-        const imgName = 'thumb_' + padZero(i) + '.webp'; 
-        
-        thumbImg.src = 'assets/img/' + imgName;
-        thumbImg.alt = `Miniatura ${i}`;
+        const item = galleryImages[i] || {};
+        thumbImg.src = item.thumbnail || item.src || fallbackGallery[0].thumbnail;
+        thumbImg.alt = item.alt || ('Miniatura ' + (i + 1));
         thumbImg.loading = 'lazy';
         
         thumbWrapper.appendChild(thumbImg);
         thumbWrapper.addEventListener('click', () => {
-          currentImageIndex = i;
+          currentImageIndex = i + 1;
           updateImageDisplay();
         });
         imageThumbnails.appendChild(thumbWrapper);
@@ -449,22 +536,27 @@
     }
 
     function updateImageDisplay() {
-        // FIX INP: Manipulação de DOM pesada movida para requestAnimationFrame
+        // FIX INP: ManipulaÃ§Ã£o de DOM pesada movida para requestAnimationFrame
         requestAnimationFrame(() => {
-          const imgName = padZero(currentImageIndex) + '.webp';
-          mainImage.src = 'assets/img/' + imgName;
-          imageCounter.textContent = `${currentImageIndex}/${totalImages}`;
+          const galleryImages = getGalleryImages();
+          const totalImages = galleryImages.length || 1;
+          const activeIndex = Math.max(1, Math.min(currentImageIndex, totalImages));
+          const activeImage = galleryImages[activeIndex - 1] || fallbackGallery[0];
+          mainImage.src = activeImage.src || fallbackGallery[0].src;
+          mainImage.alt = activeImage.alt || 'Imagem do produto';
+          imageCounter.textContent = `${activeIndex}/${totalImages}`;
 
           imageDots.querySelectorAll('.dot').forEach((d, i) =>
-            d.classList.toggle('active', i + 1 === currentImageIndex));
+            d.classList.toggle('active', i + 1 === activeIndex));
 
           imageThumbnails.querySelectorAll('.thumbnail').forEach((t, i) =>
-            t.classList.toggle('active', i + 1 === currentImageIndex));
+            t.classList.toggle('active', i + 1 === activeIndex));
       });
     }
 
-    // ⭐️ CORREÇÃO 1: Tornando a função GLOBAL para o HTML encontrar ⭐️
+    // â­ï¸ CORREÃ‡ÃƒO 1: Tornando a funÃ§Ã£o GLOBAL para o HTML encontrar â­ï¸
     window.changeImage = function(dir) {
+      const totalImages = getGalleryImages().length || 1;
       currentImageIndex += dir;
       if (currentImageIndex > totalImages) currentImageIndex = 1;
       if (currentImageIndex < 1) currentImageIndex = totalImages;
@@ -479,11 +571,12 @@
         
         if (variantLinks[color]) {
           buyBtn.href = "javascript:void(0)";
-          buyBtn.onclick = function() { if(window.spaOpenCheckout) window.spaOpenCheckout(); };
+          buyBtn.dataset.checkoutTarget = window.buildCheckoutUrl ? window.buildCheckoutUrl(variantLinks[color]) : variantLinks[color];
+          buyBtn.removeAttribute('onclick');
         }
         
         currentVariant = color;
-        currentImageIndex = variantStartIndex[color] || 1;
+        currentImageIndex = 1;
         updateImageDisplay();
       });
     });
@@ -493,8 +586,26 @@
         defaultSwatch.classList.add('selected');
         if (variantLinks[currentVariant]) {
             buyBtn.href = "javascript:void(0)";
-            buyBtn.onclick = function() { if(window.spaOpenCheckout) window.spaOpenCheckout(); };
+            buyBtn.dataset.checkoutTarget = window.buildCheckoutUrl ? window.buildCheckoutUrl(variantLinks[currentVariant]) : variantLinks[currentVariant];
+            buyBtn.removeAttribute('onclick');
         }
+    }
+
+    if (typeof window.onProductConfigReady === 'function') {
+        window.onProductConfigReady(function () {
+            const checkoutPath = window.__PRODUCT_CHECKOUT_PATH || '/c/';
+            Object.keys(variantLinks).forEach(function (key) {
+                variantLinks[key] = checkoutPath;
+            });
+            currentImageIndex = 1;
+            createImageDots();
+            createThumbnails();
+            updateImageDisplay();
+            if (buyBtn) {
+                buyBtn.href = "javascript:void(0)";
+                buyBtn.dataset.checkoutTarget = window.buildCheckoutUrl ? window.buildCheckoutUrl(checkoutPath) : checkoutPath;
+            }
+        });
     }
 
     createImageDots();
@@ -503,14 +614,14 @@
     startCountdown();     
     updateShippingDate(); 
     
-    // ⭐️ CORREÇÃO 2: SWIPE com verificação de eixo Y (Scroll) ⭐️
+    // â­ï¸ CORREÃ‡ÃƒO 2: SWIPE com verificaÃ§Ã£o de eixo Y (Scroll) â­ï¸
     const imgContainer = document.querySelector('.image-container');
     let touchStartX = 0;
     let touchStartY = 0;
     let touchEndX = 0;
     let touchEndY = 0;
     
-    // Controle de disparo único para evento de Galeria
+    // Controle de disparo Ãºnico para evento de Galeria
     let galleryEventFired = false;
 
     if (imgContainer) {
@@ -530,12 +641,12 @@
       const xDiff = touchEndX - touchStartX;
       const yDiff = touchEndY - touchStartY;
       
-      // Só muda imagem se movimento horizontal for maior que vertical (para não atrapalhar o scroll)
+      // SÃ³ muda imagem se movimento horizontal for maior que vertical (para nÃ£o atrapalhar o scroll)
       if (Math.abs(xDiff) > 50 && Math.abs(xDiff) > Math.abs(yDiff)) {
-        if (xDiff < 0) window.changeImage(1); // Swipe Esquerda -> Próxima
+        if (xDiff < 0) window.changeImage(1); // Swipe Esquerda -> PrÃ³xima
         else window.changeImage(-1); // Swipe Direita -> Anterior
         
-        // ⭐️ NOVO: Rastreia interação com galeria (Micro-Conversão)
+        // â­ï¸ NOVO: Rastreia interaÃ§Ã£o com galeria (Micro-ConversÃ£o)
         if (!galleryEventFired && window.trackViaZaraz) {
             galleryEventFired = true;
             window.trackViaZaraz('Interact_Gallery', { event_id: window.generateEventId() });
@@ -545,19 +656,19 @@
     
     // Pop-up de Vendas
     const buyers = [
-        { name: "Fernanda Maia", city: "Rio de Janeiro, RJ", img: "assets/img/foto1.webp" },
-        { name: "Bruna Lima", city: "São Paulo, SP", img: "assets/img/foto2.webp" },
-        { name: "Marilia Lima", city: "Belo Horizonte, MG", img: "assets/img/foto3.webp" },
-        { name: "Karina Andrade", city: "Curitiba, PR", img: "assets/img/foto4.webp" },
-        { name: "Bruna Silva", city: "Salvador, BA", img: "assets/img/foto5.webp" },
-        { name: "Kailane Cristina", city: "Fortaleza, CE", img: "assets/img/foto6.webp" },
-        { name: "Mariana Lemos", city: "Porto Alegre, RS", img: "assets/img/foto7.webp" }
+        { name: "Fernanda Maia", city: "Rio de Janeiro, RJ", img: "/assets/img/foto1.webp" },
+        { name: "Bruna Lima", city: "SÃ£o Paulo, SP", img: "/assets/img/foto2.webp" },
+        { name: "Marilia Lima", city: "Belo Horizonte, MG", img: "/assets/img/foto3.webp" },
+        { name: "Karina Andrade", city: "Curitiba, PR", img: "/assets/img/foto4.webp" },
+        { name: "Bruna Silva", city: "Salvador, BA", img: "/assets/img/foto5.webp" },
+        { name: "Kailane Cristina", city: "Fortaleza, CE", img: "/assets/img/foto6.webp" },
+        { name: "Mariana Lemos", city: "Porto Alegre, RS", img: "/assets/img/foto7.webp" }
     ];
 
     const actions = [
         "Comprou agora mesmo",
         "Acabou de comprar",
-        "Comprou há 2 minutos",
+        "Comprou hÃ¡ 2 minutos",
         "Garantiu a oferta",
         "Comprou 2 unidades"
     ];
@@ -571,7 +682,10 @@
 
         if (!popup) return;
 
-        const randomBuyer = buyers[Math.floor(Math.random() * buyers.length)];
+        const runtimeBuyers = Array.isArray(window.__salesPopupBuyers) && window.__salesPopupBuyers.length
+            ? window.__salesPopupBuyers
+            : buyers;
+        const randomBuyer = runtimeBuyers[Math.floor(Math.random() * runtimeBuyers.length)];
         const randomAction = actions[Math.floor(Math.random() * actions.length)];
 
         nameEl.textContent = randomBuyer.name;
@@ -595,4 +709,3 @@
     }
     
   });
-

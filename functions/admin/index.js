@@ -1,331 +1,4 @@
-// Cloudflare Pages Function: GET /admin
-// Serves the Admin Panel behind HTTP Basic Auth.
-// Secrets required: PIX_ADMIN_USER, PIX_ADMIN_PASS
-
-function unauthorized() {
-  return new Response('Unauthorized', {
-    status: 401,
-    headers: {
-      'cache-control': 'no-store, max-age=0',
-      'www-authenticate': 'Basic realm="PIX Admin", charset="UTF-8"',
-    },
-  });
-}
-
-function checkBasicAuth(request, env) {
-  const user = env.PIX_ADMIN_USER;
-  const pass = env.PIX_ADMIN_PASS;
-  if (!user || !pass) return false;
-
-  const auth = request.headers.get('authorization') || '';
-  const m = auth.match(/^Basic\s+(.+)$/i);
-  if (!m) return false;
-
-  let decoded = '';
-  try {
-    decoded = atob(m[1]);
-  } catch {
-    return false;
-  }
-
-  const i = decoded.indexOf(':');
-  if (i < 0) return false;
-
-  const gotUser = decoded.slice(0, i);
-  const gotPass = decoded.slice(i + 1);
-  return gotUser === user && gotPass === pass;
-}
-
-function serveHTML() {
-  const page = [
-    '<!doctype html>',
-    '<html lang="pt-br">',
-    '<head>',
-    '<meta charset="utf-8"/>',
-    '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
-    '<title>Izzat - Painel Admin</title>',
-    '<link rel="preconnect" href="https://fonts.googleapis.com"/>',
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>',
-    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>',
-    '<script src="https://cdn.tailwindcss.com"><\/script>',
-    '<script>tailwind.config={theme:{extend:{fontFamily:{sans:["Inter","system-ui","sans-serif"]}}}}<\/script>',
-    '<style type="text/css">',
-    'body{font-family:Inter,system-ui,sans-serif}',
-    '.nav-item{transition:all .15s}',
-    '.nav-item:hover{background:rgba(255,255,255,.05)}',
-    '.nav-item.active{background:rgba(34,197,94,.12);color:#22c55e}',
-    '</style>',
-    '</head>',
-    '<body class="bg-gray-50 text-slate-800 min-h-screen">',
-    '',
-    '<!-- Sidebar -->',
-    '<div id="sidebar" class="fixed left-0 top-0 bottom-0 w-60 bg-slate-900 text-slate-300 flex flex-col z-10 hidden lg:flex">',
-    '  <div class="px-5 py-6 border-b border-white/5">',
-    '    <h2 class="text-lg font-extrabold text-white">Izzat</h2>',
-    '    <span class="text-xs text-slate-500">Painel Administrativo</span>',
-    '  </div>',
-    '  <nav class="p-3 flex-1 flex flex-col gap-1">',
-    '    <a class="nav-item active flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer" onclick="showSection(\'dashboard\')">',
-    '      <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-    '      Dashboard',
-    '    </a>',
-    '    <a class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer" onclick="showSection(\'orders\')">',
-    '      <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>',
-    '      Pedidos',
-    '    </a>',
-    '    <a class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer" onclick="showSection(\'pix\')">',
-    '      <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
-    '      Config PIX',
-    '    </a>',
-    '  </nav>',
-    '</div>',
-    '',
-    '<!-- Mobile header -->',
-    '<div class="lg:hidden bg-slate-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">',
-    '  <h2 class="text-base font-extrabold">Izzat Admin</h2>',
-    '  <div class="flex gap-1">',
-    '    <button onclick="showSection(\'dashboard\')" class="text-xs px-2.5 py-1.5 rounded bg-white/10 font-medium">Dashboard</button>',
-    '    <button onclick="showSection(\'orders\')" class="text-xs px-2.5 py-1.5 rounded bg-white/10 font-medium">Pedidos</button>',
-    '    <button onclick="showSection(\'pix\')" class="text-xs px-2.5 py-1.5 rounded bg-white/10 font-medium">PIX</button>',
-    '  </div>',
-    '</div>',
-    '',
-    '<!-- Main content -->',
-    '<div class="lg:ml-60 p-4 lg:p-8">',
-    '',
-    '  <!-- DASHBOARD -->',
-    '  <div id="sec-dashboard" class="section">',
-    '    <div class="flex justify-between items-center mb-6">',
-    '      <h1 class="text-2xl font-extrabold text-slate-900">Dashboard</h1>',
-    '      <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700"><span class="w-2 h-2 rounded-full bg-green-500"></span>Online</span>',
-    '    </div>',
-    '    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">',
-    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
-    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Visitantes Online</div>',
-    '        <div class="text-3xl font-extrabold text-blue-600" id="onlineNow">0</div>',
-    '      </div>',
-    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
-    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Copias PIX</div>',
-    '        <div class="text-3xl font-extrabold text-green-600" id="pixClicks">0</div>',
-    '      </div>',
-    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
-    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Pedidos Hoje</div>',
-    '        <div class="text-3xl font-extrabold text-slate-800" id="ordersToday">0</div>',
-    '      </div>',
-    '      <div class="bg-white border border-slate-200 rounded-xl p-5">',
-    '        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Total Pedidos</div>',
-    '        <div class="text-3xl font-extrabold text-slate-800" id="ordersTotal">0</div>',
-    '      </div>',
-    '    </div>',
-    '    <div class="bg-white border border-slate-200 rounded-xl">',
-    '      <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">',
-    '        <span class="text-sm font-bold text-slate-800">Pedidos Recentes</span>',
-    '        <button class="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200" onclick="showSection(\'orders\')">Ver todos</button>',
-    '      </div>',
-    '      <div id="recentOrdersBody" class="overflow-x-auto"><div class="text-center py-10 text-slate-400 text-sm">Carregando...</div></div>',
-    '    </div>',
-    '  </div>',
-    '',
-    '  <!-- ORDERS -->',
-    '  <div id="sec-orders" class="section" style="display:none">',
-    '    <div class="flex justify-between items-center mb-6">',
-    '      <h1 class="text-2xl font-extrabold text-slate-900">Pedidos</h1>',
-    '      <div class="flex gap-2">',
-    '        <button class="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200" onclick="loadOrders()">Atualizar</button>',
-    '        <button class="text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100" onclick="clearOrders()">Apagar todos</button>',
-    '      </div>',
-    '    </div>',
-    '    <div class="bg-white border border-slate-200 rounded-xl">',
-    '      <div id="ordersBody" class="overflow-x-auto"><div class="text-center py-10 text-slate-400 text-sm">Carregando...</div></div>',
-    '    </div>',
-    '  </div>',
-    '',
-    '  <!-- PIX CONFIG -->',
-    '  <div id="sec-pix" class="section" style="display:none">',
-    '    <div class="flex justify-between items-center mb-6">',
-    '      <h1 class="text-2xl font-extrabold text-slate-900">Configuracao PIX</h1>',
-    '      <div id="statusMsg" class="text-xs font-medium"></div>',
-    '    </div>',
-    '    <div class="bg-white border border-slate-200 rounded-xl">',
-    '      <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">',
-    '        <span class="text-sm font-bold text-slate-800">PIX Copia e Cola</span>',
-    '        <span class="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">Atualizado: <span id="updated">-</span></span>',
-    '      </div>',
-    '      <div class="p-5">',
-    '        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Codigo PIX</label>',
-    '        <textarea id="pix" class="w-full border border-slate-200 rounded-lg p-3 text-xs font-mono bg-slate-50 focus:border-green-500 focus:ring-2 focus:ring-green-500/10 outline-none min-h-[100px] resize-y" placeholder="Cole aqui o codigo PIX..."></textarea>',
-    '        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 mt-4">QR Code (URL ou caminho)</label>',
-    '        <input id="qr" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 focus:border-green-500 focus:ring-2 focus:ring-green-500/10 outline-none" placeholder="assets/img/qrcode.webp"/>',
-    '        <label class="flex items-center gap-2 text-sm text-slate-500 font-medium mt-3 cursor-pointer">',
-    '          <input id="disableQr" type="checkbox" class="w-4 h-4 accent-green-600"/>',
-    '          Desativar QR Code',
-    '        </label>',
-    '        <div class="flex gap-2 mt-5">',
-    '          <button id="save" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors">Salvar</button>',
-    '          <button id="reload" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors">Recarregar</button>',
-    '        </div>',
-    '      </div>',
-    '    </div>',
-    '  </div>',
-    '',
-    '</div>',
-    '',
-    '<script>',
-    'var $=function(id){return document.getElementById(id)};',
-    '',
-    'function showSection(name){',
-    '  document.querySelectorAll(".section").forEach(function(s){s.style.display="none"});',
-    '  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active")});',
-    '  var sec=$("sec-"+name);',
-    '  if(sec)sec.style.display="block";',
-    '  var navs=document.querySelectorAll(".nav-item");',
-    '  var idx={dashboard:0,orders:1,pix:2}[name];',
-    '  if(navs[idx])navs[idx].classList.add("active");',
-    '  if(name==="orders")loadOrders();',
-    '}',
-    '',
-    'function setStatus(h,ok){',
-    '  $("statusMsg").innerHTML=ok!==false?"<span class=\\"text-green-600\\">"+h+"</span>":"<span class=\\"text-red-500\\">"+h+"</span>";',
-    '}',
-    '',
-    'async function load(){',
-    '  setStatus("Carregando...");',
-    '  try{',
-    '    var res=await fetch("/api/pix-config-admin?_="+Date.now(),{cache:"no-store"});',
-    '    if(res.status===401){setStatus("401: credenciais invalidas.",false);return}',
-    '    var data=await res.json();',
-    '    if(!data||!data.ok)throw new Error("invalid");',
-    '    $("pix").value=data.pix_code||"";',
-    '    $("qr").value=(data.qrcode_url===null)?"":data.qrcode_url||"";',
-    '    $("disableQr").checked=(data.qrcode_url===null);',
-    '    $("updated").textContent=data.updated_at?new Date(data.updated_at).toLocaleString("pt-BR"):"-";',
-    '    setStatus("Carregado.");',
-    '  }catch(e){setStatus("Falha ao carregar.",false);console.error(e)}',
-    '}',
-    '',
-    'async function save(){',
-    '  var pix=$("pix").value.trim();',
-    '  var disableQr=$("disableQr").checked;',
-    '  var qr=$("qr").value.trim();',
-    '  setStatus("Salvando...");',
-    '  try{',
-    '    var payload={pix_code:pix,qrcode_url:disableQr?null:(qr||"assets/img/qrcode.webp")};',
-    '    var res=await fetch("/api/pix-config-admin",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});',
-    '    if(res.status===401){setStatus("401: credenciais invalidas.",false);return}',
-    '    var data=await res.json().catch(function(){return null});',
-    '    if(!res.ok||!data||!data.ok){setStatus("Erro ao salvar.",false);return}',
-    '    $("updated").textContent=data.updated_at?new Date(data.updated_at).toLocaleString("pt-BR"):"-";',
-    '    setStatus("Salvo com sucesso!");',
-    '  }catch(e){setStatus("Falha ao salvar.",false);console.error(e)}',
-    '}',
-    '',
-    'async function loadMetrics(){',
-    '  try{',
-    '    var res=await fetch("/api/metrics/stats?_="+Date.now(),{cache:"no-store"});',
-    '    if(res.status===401)return;',
-    '    var data=await res.json().catch(function(){return null});',
-    '    if(data&&data.ok){',
-    '      $("onlineNow").textContent=data.online_now||"0";',
-    '      $("pixClicks").textContent=data.pix_copy_clicks_total||"0";',
-    '    }',
-    '  }catch(e){}',
-    '}',
-    '',
-    'var allOrders=[];',
-    '',
-    'async function loadOrders(){',
-    '  try{',
-    '    var res=await fetch("/api/orders?_="+Date.now(),{cache:"no-store"});',
-    '    if(res.status===401)return;',
-    '    var data=await res.json().catch(function(){return null});',
-    '    if(data&&data.ok&&Array.isArray(data.orders)){',
-    '      allOrders=data.orders;',
-    '      renderOrders();',
-    '      updateOrderStats();',
-    '    }',
-    '  }catch(e){}',
-    '}',
-    '',
-    'function updateOrderStats(){',
-    '  var today=new Date().toISOString().slice(0,10);',
-    '  var todayCount=allOrders.filter(function(o){return o.created_at&&o.created_at.slice(0,10)===today}).length;',
-    '  $("ordersToday").textContent=todayCount;',
-    '  $("ordersTotal").textContent=allOrders.length;',
-    '}',
-    '',
-    'function formatDate(iso){',
-    '  if(!iso)return"-";',
-    '  try{return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}',
-    '  catch(e){return iso}',
-    '}',
-    '',
-    'function formatPhone(p){',
-    '  if(!p)return"-";',
-    '  var d=String(p).replace(/[^0-9]/g,"");',
-    '  if(d.length===11)return"("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);',
-    '  if(d.length===13)return"+"+d.slice(0,2)+" ("+d.slice(2,4)+") "+d.slice(4,9)+"-"+d.slice(9);',
-    '  return p;',
-    '}',
-    '',
-    'function esc(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}',
-    '',
-    'function renderOrderTable(orders,containerId){',
-    '  var el=$(containerId);',
-    '  if(!orders.length){el.innerHTML="<div class=\\"text-center py-10 text-slate-400 text-sm\\">Nenhum pedido encontrado.</div>";return}',
-    '  var h="<table class=\\"w-full text-sm\\"><thead><tr class=\\"bg-slate-50 border-b border-slate-200\\">";',
-    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Cliente</th>";',
-    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Contato</th>";',
-    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase hidden lg:table-cell\\">Endereco</th>";',
-    '  h+="<th class=\\"text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Data</th>";',
-    '  h+="<th class=\\"text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase\\">Valor</th>";',
-    '  h+="</tr></thead><tbody>";',
-    '  orders.forEach(function(o){',
-    '    h+="<tr class=\\"border-b border-slate-50 hover:bg-slate-50\\">";',
-    '    h+="<td class=\\"px-4 py-3\\"><div class=\\"font-semibold text-slate-800\\">"+esc(o.name)+"</div><div class=\\"text-xs text-slate-400 mt-0.5\\">"+esc(o.id)+"</div></td>";',
-    '    h+="<td class=\\"px-4 py-3\\"><div class=\\"font-medium\\">"+esc(formatPhone(o.phone))+"</div><div class=\\"text-xs text-slate-400\\">"+esc(o.email)+"</div>"+(o.cpf?"<div class=\\"text-xs text-slate-400\\">CPF: "+esc(o.cpf)+"</div>":"")+"</td>";',
-    '    h+="<td class=\\"px-4 py-3 hidden lg:table-cell\\"><div class=\\"text-xs text-slate-500\\">"+esc(o.address||"-")+(o.number?", "+esc(o.number):"")+"</div><div class=\\"text-xs text-slate-400\\">"+esc(o.city||"-")+(o.cep?" - "+esc(o.cep):"")+"</div></td>";',
-    '    h+="<td class=\\"px-4 py-3\\"><div class=\\"text-xs text-slate-500\\">"+formatDate(o.created_at)+"</div></td>";',
-    '    h+="<td class=\\"px-4 py-3 text-right\\"><div class=\\"font-bold text-green-600\\">R$ "+(o.value||197.99).toFixed(2).replace(".",",")+"</div></td>";',
-    '    h+="</tr>";',
-    '  });',
-    '  h+="</tbody></table>";',
-    '  el.innerHTML=h;',
-    '}',
-    '',
-    'async function clearOrders(){',
-    '  if(!confirm("Tem certeza que deseja apagar TODOS os pedidos? Esta acao nao pode ser desfeita."))return;',
-    '  try{',
-    '    var res=await fetch("/api/orders",{method:"DELETE"});',
-    '    var data=await res.json().catch(function(){return null});',
-    '    if(data&&data.ok){allOrders=[];renderOrders();updateOrderStats();alert("Pedidos apagados com sucesso.")}',
-    '    else{alert("Erro ao apagar pedidos.")}',
-    '  }catch(e){alert("Erro ao apagar pedidos.")}',
-    '}',
-    '',
-    'function renderOrders(){',
-    '  renderOrderTable(allOrders.slice(0,5),"recentOrdersBody");',
-    '  renderOrderTable(allOrders,"ordersBody");',
-    '}',
-    '',
-    'function init(){',
-    '  $("reload").addEventListener("click",load);',
-    '  $("save").addEventListener("click",save);',
-    '  $("disableQr").addEventListener("change",function(){',
-    '    $("qr").disabled=$("disableQr").checked;',
-    '    if($("disableQr").checked)$("qr").value="";',
-    '  });',
-    '  load();loadMetrics();loadOrders();',
-    '  setInterval(loadMetrics,10000);',
-    '  setInterval(loadOrders,30000);',
-    '}',
-    'init();',
-    '<\/script>',
-    '</body>',
-    '</html>',
-  ].join('\n');
-
-  return page;
-}
+import { checkBasicAuth, unauthorized } from '../_shared/auth.js';
 
 function htmlResponse(body, status = 200) {
   return new Response(body, {
@@ -337,7 +10,292 @@ function htmlResponse(body, status = 200) {
   });
 }
 
+function renderAdminShell() {
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Izzat Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 font-sans">
+  <div class="flex min-h-screen">
+    <aside class="hidden w-72 border-r border-white/10 bg-slate-950/90 p-6 lg:flex lg:flex-col">
+      <div>
+        <div class="text-2xl font-extrabold text-white">Izzat</div>
+        <div class="mt-1 text-sm text-slate-500">Painel de produtos, PIX e tracking</div>
+      </div>
+      <nav class="mt-8 flex flex-col gap-2">
+        <button type="button" data-section="dashboard" class="rounded-2xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-left text-sm font-semibold text-emerald-300">Dashboard</button>
+        <button type="button" data-section="orders" class="rounded-2xl border border-white/10 px-4 py-3 text-left text-sm font-semibold text-slate-300">Pedidos</button>
+        <button type="button" data-section="products" class="rounded-2xl border border-white/10 px-4 py-3 text-left text-sm font-semibold text-slate-300">Produtos</button>
+      </nav>
+      <div class="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-slate-400">
+        Cada produto pode ter LP, checkout, PIX e tracking independentes.
+      </div>
+    </aside>
+
+    <main class="flex-1">
+      <header class="sticky top-0 z-20 border-b border-white/10 bg-slate-950/80 backdrop-blur">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-4 lg:px-8">
+          <div>
+            <div class="text-lg font-bold text-white">Painel administrativo</div>
+            <div class="text-sm text-slate-500">Cadastro completo de produtos e paginas de vendas</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="refreshData" type="button" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">Recarregar</button>
+            <button id="saveProducts" type="button" class="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">Salvar produtos</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="px-4 py-6 lg:px-8">
+        <div id="statusMsg" class="mb-4 text-xs font-semibold text-slate-400">Carregando painel...</div>
+
+        <section id="section-dashboard" class="admin-section">
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Online agora</div>
+              <div id="onlineNow" class="mt-3 text-3xl font-extrabold text-white">0</div>
+            </div>
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Copias PIX</div>
+              <div id="pixClicks" class="mt-3 text-3xl font-extrabold text-emerald-300">0</div>
+            </div>
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Pedidos hoje</div>
+              <div id="ordersToday" class="mt-3 text-3xl font-extrabold text-white">0</div>
+            </div>
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Pedidos totais</div>
+              <div id="ordersTotal" class="mt-3 text-3xl font-extrabold text-white">0</div>
+            </div>
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div class="text-xs uppercase tracking-[0.2em] text-slate-500">Produtos ativos</div>
+              <div id="productsActive" class="mt-3 text-3xl font-extrabold text-amber-300">0</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="section-orders" class="admin-section hidden mt-6">
+          <div class="rounded-3xl border border-white/10 bg-white/5">
+            <div class="border-b border-white/10 px-5 py-4">
+              <div class="text-base font-bold text-white">Pedidos recebidos</div>
+            </div>
+            <div id="ordersBody" class="overflow-x-auto"></div>
+          </div>
+        </section>
+
+        <section id="section-products" class="admin-section hidden mt-6">
+          <div class="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+            <div class="space-y-4">
+              <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <div class="text-base font-bold text-white">Produtos</div>
+                    <div class="text-xs text-slate-500">Selecione para editar</div>
+                  </div>
+                  <button id="newProduct" type="button" class="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/15">Novo</button>
+                </div>
+                <div id="productList" class="mt-4 space-y-2"></div>
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                  <button id="duplicateProduct" type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10">Duplicar</button>
+                  <button id="removeProduct" type="button" class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/15">Remover</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div class="text-base font-bold text-white">Configuracao do produto</div>
+                  <div class="text-xs text-slate-500">Edite LP, checkout, PIX e tracking no mesmo lugar</div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button id="openLanding" type="button" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10">Abrir LP</button>
+                  <button id="openCheckout" type="button" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10">Abrir checkout</button>
+                </div>
+              </div>
+
+              <div class="mt-6 grid gap-6 xl:grid-cols-2">
+                <div class="space-y-5">
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Basico</div>
+                    <div class="grid gap-3">
+                      <label class="text-sm">
+                        <span class="mb-1 block text-slate-400">Titulo</span>
+                        <input id="fieldTitle" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" />
+                      </label>
+                      <label class="text-sm">
+                        <span class="mb-1 block text-slate-400">Slug</span>
+                        <input id="fieldSlug" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" />
+                      </label>
+                      <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="text-sm">
+                          <span class="mb-1 block text-slate-400">Categoria</span>
+                          <input id="fieldCategory" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" />
+                        </label>
+                        <label class="text-sm">
+                          <span class="mb-1 block text-slate-400">Variante</span>
+                          <input id="fieldVariantLabel" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" />
+                        </label>
+                      </div>
+                      <label class="text-sm">
+                        <span class="mb-1 block text-slate-400">Descricao curta da LP</span>
+                        <textarea id="fieldShortDescription" rows="3" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"></textarea>
+                      </label>
+                      <label class="text-sm">
+                        <span class="mb-1 block text-slate-400">Descricao SEO / meta</span>
+                        <textarea id="fieldSeoDescription" rows="3" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"></textarea>
+                      </label>
+                      <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-200">
+                          <input id="fieldActive" type="checkbox" class="h-4 w-4 accent-emerald-400" />
+                          Produto ativo
+                        </label>
+                        <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-200">
+                          <input id="fieldDefault" type="checkbox" class="h-4 w-4 accent-emerald-400" />
+                          Produto padrao da home
+                        </label>
+                      </div>
+                      <div class="grid gap-2 rounded-2xl border border-white/10 bg-slate-900/50 p-3 text-xs text-slate-400">
+                        <div>LP: <span id="previewLanding" class="text-slate-200"></span></div>
+                        <div>Checkout: <span id="previewCheckout" class="text-slate-200"></span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Precos e prova social</div>
+                    <div class="grid gap-3 sm:grid-cols-3">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Preco LP cheio</span><input id="fieldPriceOriginal" type="number" step="0.01" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Preco LP oferta</span><input id="fieldPriceLanding" type="number" step="0.01" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Preco checkout</span><input id="fieldPriceCheckout" type="number" step="0.01" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Badge de desconto</span><input id="fieldDiscountBadge" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Texto de economia</span><input id="fieldDiscountText" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-4">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Nota</span><input id="fieldRatingValue" type="number" step="0.1" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Qtd. notas</span><input id="fieldRatingCount" type="number" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Vendidos</span><input id="fieldSoldCount" type="number" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Qtd. avaliacoes</span><input id="fieldReviewCount" type="number" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <label class="mt-3 block text-sm">
+                      <span class="mb-1 block text-slate-400">Resumo de estrelas (JSON)</span>
+                      <textarea id="fieldRatingBreakdown" rows="8" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea>
+                    </label>
+                  </div>
+
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Midia e avaliacoes</div>
+                    <label class="block text-sm">
+                      <span class="mb-1 block text-slate-400">Fotos do produto (1 URL/caminho por linha)</span>
+                      <textarea id="fieldImages" rows="8" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea>
+                    </label>
+                    <label class="mt-3 block text-sm">
+                      <span class="mb-1 block text-slate-400">Avaliacoes visiveis (JSON)</span>
+                      <textarea id="fieldVisibleReviews" rows="12" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea>
+                    </label>
+                    <label class="mt-3 block text-sm">
+                      <span class="mb-1 block text-slate-400">Avaliacoes extras (JSON)</span>
+                      <textarea id="fieldExtraReviews" rows="12" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="space-y-5">
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Descricao da LP</div>
+                    <label class="block text-sm"><span class="mb-1 block text-slate-400">Titulo da secao</span><input id="fieldDescriptionHeading" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    <label class="mt-3 block text-sm"><span class="mb-1 block text-slate-400">Texto principal</span><textarea id="fieldDescriptionText" rows="5" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"></textarea></label>
+                    <label class="mt-3 block text-sm"><span class="mb-1 block text-slate-400">Bullets da descricao (JSON)</span><textarea id="fieldDescriptionBullets" rows="12" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea></label>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Titulo da caixa final</span><input id="fieldInfoTitle" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Texto da caixa final</span><textarea id="fieldInfoText" rows="4" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"></textarea></label>
+                    </div>
+                  </div>
+
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Checkout</div>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Badge da oferta</span><input id="fieldOfferBadge" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Texto do botao</span><input id="fieldSubmitLabel" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Titulo garantia</span><input id="fieldGuaranteeTitle" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Texto garantia</span><textarea id="fieldGuaranteeText" rows="4" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"></textarea></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Titulo sucesso</span><input id="fieldSuccessTitle" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Subtitulo sucesso</span><textarea id="fieldSuccessSubtitle" rows="4" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"></textarea></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Nome do pagamento</span><input id="fieldPaymentLabel" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Badge do pagamento</span><input id="fieldPaymentBadge" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <label class="mt-3 block text-sm"><span class="mb-1 block text-slate-400">Passos do pagamento (JSON)</span><textarea id="fieldPaymentInstructions" rows="10" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea></label>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Rodape linha 1</span><input id="fieldFooterPrimary" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Rodape linha 2</span><input id="fieldFooterSecondary" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                  </div>
+
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">PIX e tracking</div>
+                    <label class="block text-sm"><span class="mb-1 block text-slate-400">PIX copia e cola</span><textarea id="fieldPixCode" rows="6" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea></label>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">QR Code (URL/caminho)</span><input id="fieldQrUrl" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-200"><input id="fieldDisableQr" type="checkbox" class="h-4 w-4 accent-emerald-400" />Ocultar QR code</label>
+                    </div>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Pixel ID</span><input id="fieldPixelId" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Nome do CAPI</span><input id="fieldCapiLabel" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <label class="mt-3 block text-sm"><span class="mb-1 block text-slate-400">Token do CAPI</span><textarea id="fieldCapiToken" rows="4" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs text-white outline-none"></textarea></label>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Test code do CAPI</span><input id="fieldCapiTestCode" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Content ID</span><input id="fieldContentId" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Content name</span><input id="fieldContentName" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Content type</span><input id="fieldContentType" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Categoria tracking</span><input id="fieldContentCategory" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Moeda</span><input id="fieldCurrency" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                      <label class="text-sm"><span class="mb-1 block text-slate-400">Quantidade</span><input id="fieldQuantity" type="number" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none" /></label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script defer src="/assets/js/admin.app.js"></script>
+</body>
+</html>`;
+}
+
 export async function onRequestGet(context) {
-  if (!checkBasicAuth(context.request, context.env)) return unauthorized();
-  return htmlResponse(serveHTML());
+  if (!checkBasicAuth(context.request, context.env)) return unauthorized('Izzat Admin');
+  return htmlResponse(renderAdminShell());
 }
