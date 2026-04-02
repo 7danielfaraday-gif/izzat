@@ -1,0 +1,7 @@
+name = "izzat-rastreio"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "RASTREIO_KV"
+id = "SEU_KV_NAMESPACE_ID_AQUI"
