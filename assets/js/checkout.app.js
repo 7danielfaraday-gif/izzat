@@ -27,30 +27,45 @@
    'Salmão': '/assets/img/09.webp',
    'Marrom Telha': '/assets/img/10.webp'
  };
+ Object.assign(COLOR_IMAGE_MAP, {
+   Rosa: '/assets/img/caneta-3d-01.webp',
+   Roxo: '/assets/img/caneta-3d-03.webp',
+   Azul: '/assets/img/caneta-3d-02.webp',
+   Amarelo: '/assets/img/caneta-3d-04.webp'
+ });
 
  const getSelectedVariant = () => {
    try {
      const urlParams = new URLSearchParams(window.location.search);
-     const color = urlParams.get('color') || localStorage.getItem('user_selected_color') || 'Rose';
-     const size = urlParams.get('size') || localStorage.getItem('user_selected_size') || 'Casal Queen (3 Peças)';
+     const color = urlParams.get('color') || localStorage.getItem('user_selected_color') || 'Rosa';
+     const size = urlParams.get('size') || localStorage.getItem('user_selected_size') || 'Caneta 3D';
      return { color, size };
    } catch(e) {
-     return { color: 'Rose', size: 'Casal Queen (3 Peças)' };
+     return { color: 'Rosa', size: 'Caneta 3D' };
    }
  };
 
  const currentVariantObj = getSelectedVariant();
+ if (!['Rosa', 'Roxo', 'Azul', 'Amarelo'].includes(currentVariantObj.color)) currentVariantObj.color = 'Rosa';
+ currentVariantObj.size = 'Caneta 3D';
  const selectedVariantImg = COLOR_IMAGE_MAP[currentVariantObj.color] || '/assets/img/10.webp';
 
  const PRODUCT_INFO = { 
-   name: "Jogo de lençol soft flanel plush " + currentVariantObj.size, 
+   name: "Caneta 3D Impressora Profissional + Refil Filamento + USB", 
    originalPrice: 119.90, 
-   price: 60.70, 
+   price: 51.90, 
    image: selectedVariantImg, 
-   id: "LENCOL-SOFT-PLUSH",
+   id: "CANETA-3D-INFANTIL",
    selectedColor: currentVariantObj.color,
    selectedSize: currentVariantObj.size
  };
+ Object.assign(PRODUCT_INFO, {
+   name: 'Caneta 3D Impressora Profissional + Refil Filamento + USB',
+   originalPrice: 51.90,
+   price: 51.90,
+   id: 'CANETA-3D-INFANTIL',
+   image: selectedVariantImg
+ });
 
 const isLabMode = () => !!window.__LAB_MODE;
 
@@ -498,8 +513,8 @@ e("img", { src: "/assets/img/logo-small-120.webp", srcSet: "/assets/img/logo-sma
  e("div", { className: "w-24 h-24 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 shadow-inner" }, e("img", { src: PRODUCT_INFO.image, className: "w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500", alt: PRODUCT_INFO.name, loading: "eager", decoding: "async", onError: (ev) => { try { const img = ev.target; if(!img.dataset.fallback){ img.dataset.fallback='1'; img.src = "/" + String(PRODUCT_INFO.image || '').replace(/^\/+/, ''); } } catch(e) {} } })),
  e("div", {className: "flex-1 min-w-0 mt-2"},
  e("h3", { className: "text-sm font-bold text-slate-800 leading-snug line-clamp-2 mb-1" }, PRODUCT_INFO.name),
- e("div", { className: "mb-1" }, e("span", { className: "text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block" }, "Cor: " + (PRODUCT_INFO.selectedColor || 'Rose') + " · Modelo: " + (PRODUCT_INFO.selectedSize || 'Casal Queen'))),
- e("div", {className: "flex flex-col items-start"}, e("span", { className: "text-xs text-slate-400 line-through" }, "De R$ " + PRODUCT_INFO.originalPrice.toFixed(2).replace('.',',')), e("span", { className: "font-extrabold text-2xl text-green-600 tracking-tight" }, "Por R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))),
+ e("div", { className: "mb-1" }, e("span", { className: "text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block" }, "Cor: " + (PRODUCT_INFO.selectedColor || 'Rosa') + " · Modelo: " + (PRODUCT_INFO.selectedSize || 'Caneta 3D'))),
+ e("div", {className: "flex flex-col items-start"}, e("span", { className: "font-extrabold text-2xl text-green-600 tracking-tight" }, "Por R$ " + PRODUCT_INFO.price.toFixed(2).replace('.',','))),
  e("div", { className: "flex items-center gap-2 mt-3 flex-wrap" }, 
  e("span", { className: "text-[10px] bg-green-50 border border-green-100 text-green-800 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5" }, e(Icons.Shield, {className: "w-3 h-3"}), "Compra Segura"),
  e("span", { className: "text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-800 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5" }, e(Icons.Package, {className: "w-3 h-3"}), "Garantia 12 Meses")
@@ -686,8 +701,8 @@ if (document.activeElement && document.activeElement.blur) document.activeElemen
 requestAnimationFrame(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
  
 if (customerData && customerData.transactionId) {
-const completePaymentEventId = 'evt_completepayment_' + customerData.transactionId;
-trackEvent('CompletePayment', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, value: PRODUCT_INFO.price, currency: 'BRL', order_id: customerData.transactionId, event_id: completePaymentEventId, email: customerData.email, phone: customerData.phone });
+const purchaseEventId = 'evt_purchase_' + customerData.transactionId;
+trackEvent('Purchase', { ...window.PRODUCT_CONTENT, content_name: PRODUCT_INFO.name, value: PRODUCT_INFO.price, currency: 'BRL', order_id: customerData.transactionId, event_id: purchaseEventId, email: customerData.email, phone: customerData.phone });
 }
  
 const step1 = setTimeout(() => setLoadingState(1), 500);

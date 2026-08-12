@@ -10,8 +10,19 @@
 <noscript><link href="/assets/fonts/inter-local.css?v=20260518font1" rel="stylesheet"/></noscript>
 <link crossorigin="" href="https://analytics.tiktok.com" rel="preconnect"/>
 <link href="//analytics.tiktok.com" rel="dns-prefetch"/>
-<title>Checkout - Jogo de lençol soft flanel plush casal Queen e solteiro 3 peças com elástico</title>
-<link as="image" fetchpriority="high" href="../assets/img/01-160.webp?v=20260725lencol1" rel="preload"/>
+<title>Checkout - Caneta 3D Impressora Profissional + Refil Filamento + USB</title>
+<script>
+if (!window.__TEST_MODE && !window.__LAB_MODE) {
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','1476154184418659');
+fbq('track','PageView');
+}
+</script>
+<link as="image" fetchpriority="high" href="/assets/img/caneta-3d-01.webp" rel="preload" type="image/webp"/>
 <link href="https://viacep.com.br" rel="dns-prefetch"/>
 <link rel="stylesheet" href="/assets/css/tailwind-static.css?v=20260518tw1"/>
 <style>
@@ -348,7 +359,7 @@
     // CAPI server-side (Cloudflare Pages Function)
     async function sendCAPI(event, eventId, properties, user) {
         try {
-            await fetch('/api/tiktok-events', {
+            await fetch('/api/meta-events', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event: event, event_id: eventId, properties: properties, user: user })
@@ -407,7 +418,16 @@
                     event_time: Math.floor(Date.now() / 1000)
                 });
 
-                // Browser Pixel (com event_id para deduplicação)
+                // Meta Browser Pixel (com event_id para deduplicação)
+                if (typeof fbq === 'function') {
+                    try {
+                        var metaBrowserPayload = Object.assign({}, payload);
+                        delete metaBrowserPayload.event_id;
+                        fbq('track', event, metaBrowserPayload, { eventID: eventId });
+                    } catch(e) {}
+                }
+
+                // TikTok Browser Pixel (com event_id para deduplicação)
                 if (window.ttq && typeof window.ttq.track === 'function') {
                     try {
                         var bp = Object.assign({}, payload);
@@ -424,10 +444,10 @@
                     capiPayload,
                     {
                         email:       finalData.email || undefined,
-                        phone_number: finalData.phone || undefined,
+                        phone:       finalData.phone || undefined,
                         external_id: window.getExternalId(),
-                        ttclid:      window.getTTCLID(),
-                        ttp:         getTTP()
+                        fbp:          (document.cookie.match(/(?:^|;\s*)_fbp=([^;]*)/) || [])[1] || undefined,
+                        fbc:          (document.cookie.match(/(?:^|;\s*)_fbc=([^;]*)/) || [])[1] || undefined
                     }
                 );
 
@@ -447,16 +467,16 @@
     const PRODUCT_CONTENT = { 
         content_type: 'product', 
         contents: [{ 
-            content_id: 'LENCOL-SOFT-PLUSH', 
-            id: 'LENCOL-SOFT-PLUSH', 
+            content_id: 'CANETA-3D-INFANTIL', 
+            id: 'CANETA-3D-INFANTIL', 
             quantity: 1, 
-            price: 60.70, 
-            item_price: 60.70 
+            price: 51.90, 
+            item_price: 51.90 
         }], 
-        content_id: 'LENCOL-SOFT-PLUSH',
-        content_name: 'Jogo de lençol soft flanel plush casal Queen e solteiro 3 peças com elástico',
-        content_ids: ['LENCOL-SOFT-PLUSH'],
-        value: 60.70, 
+        content_id: 'CANETA-3D-INFANTIL',
+        content_name: 'Caneta 3D Impressora Profissional + Refil Filamento + USB',
+        content_ids: ['CANETA-3D-INFANTIL'],
+        value: 51.90, 
         currency: 'BRL' 
     };
     window.PRODUCT_CONTENT = PRODUCT_CONTENT;
@@ -700,10 +720,10 @@
 <div class="static-left-col">
 <div class="static-card">
 <div class="static-badge">OFERTA INSTAGRAM</div>
-<div class="static-img-box"><img alt="Jogo de Lençol" class="static-img" decoding="async" height="80" loading="eager" sizes="80px" src="../assets/img/01-160.webp?v=20260725lencol1" srcset="../assets/img/01-160.webp?v=20260725lencol1 160w, ../assets/img/01-240.webp?v=20260725lencol1 240w" width="80"/></div>
+<div class="static-img-box"><img alt="Caneta 3D Impressora Profissional + Refil Filamento + USB" class="static-img" decoding="async" height="80" loading="eager" sizes="80px" src="/assets/img/caneta-3d-01.webp" width="80"/></div>
 <div class="static-info">
-<h3 class="static-title">Jogo de lençol soft flanel plush casal Queen e solteiro 3 peças com elástico</h3>
-<div><span class="static-old-price">De R$ 119,90</span><span class="static-new-price">Por R$ 60,70</span></div>
+<h3 class="static-title">Caneta 3D Impressora Profissional + Refil Filamento + USB</h3>
+<div><span class="static-old-price" style="display:none">De R$ 119,90</span><span class="static-new-price">Por R$ 51,90</span></div>
 <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
 <span style="font-size: 10px; background: #f0fdf4; color: #166534; padding: 3px 8px; border-radius: 99px; display: inline-flex; align-items: center; gap: 3px; font-weight: 600;">Compra Segura</span>
 <span style="font-size: 10px; background: #eff6ff; color: #1e40af; padding: 3px 8px; border-radius: 99px; display: inline-flex; align-items: center; gap: 3px; font-weight: 600;">Garantia 12 Meses</span>
@@ -723,6 +743,7 @@
 <div id="checkout-root"></div>
 <script defer="" src="/assets/js/checkout.app.js?v=20260601eventid1"></script>
 <script defer src="/assets/js/metrics.ping.js"></script>
+<script src="/assets/js/product-config.js?v=20260812caneta3d"></script>
 <script>
     window.addEventListener('load', function() {
         if(window.initReactCheckout) window.initReactCheckout();

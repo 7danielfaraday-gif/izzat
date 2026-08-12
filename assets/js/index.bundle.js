@@ -4,16 +4,16 @@
     
     // Dados do Produto
     const PRODUCT_CONTENT = {
-        contents: [{ content_id: 'LENCOL-SOFT-PLUSH', id: 'LENCOL-SOFT-PLUSH', quantity: 1, price: 60.70, item_price: 60.70 }],
-        content_id: 'LENCOL-SOFT-PLUSH',
-        content_ids: ['LENCOL-SOFT-PLUSH'],
-        content_name: 'Jogo de lençol soft flanel plush casal Queen e solteiro 3 peças com elástico',
-        description: 'Jogo de lençol soft flanel plush casal Queen e solteiro 3 peças com elástico',
+        contents: [{ content_id: 'CANETA-3D-INFANTIL', id: 'CANETA-3D-INFANTIL', quantity: 1, price: 51.90, item_price: 51.90 }],
+        content_id: 'CANETA-3D-INFANTIL',
+        content_ids: ['CANETA-3D-INFANTIL'],
+        content_name: 'Caneta 3D Impressora Profissional + Refil Filamento + USB',
+        description: 'Caneta 3D Impressora Profissional + Refil Filamento + USB',
         content_type: 'product',
-        category: 'Cama, Mesa e Banho',
+        category: 'Brinquedos Educativos',
         quantity: 1,
-        price: 60.70,
-        value: 60.70,
+        price: 51.90,
+        value: 51.90,
         currency: 'BRL'
     };
     window.PRODUCT_CONTENT = window.PRODUCT_CONTENT || PRODUCT_CONTENT;
@@ -418,7 +418,13 @@
     }
 
     // Galeria de Imagens
-    const totalImages = 10;
+    const galleryImages = [
+      '/assets/img/caneta-3d-01.webp',
+      '/assets/img/caneta-3d-02.webp',
+      '/assets/img/caneta-3d-03.webp',
+      '/assets/img/caneta-3d-04.webp'
+    ];
+    const totalImages = galleryImages.length;
     const variantStartIndex = {
       'Rose': 1,
       'Azul Royal': 2,
@@ -432,7 +438,8 @@
       'Marrom Telha': 10
     };
     window.variantStartIndex = variantStartIndex;
-    let currentVariant = 'Rose';
+    Object.assign(variantStartIndex, { Rosa: 1, Roxo: 3, Azul: 2, Amarelo: 4 });
+    let currentVariant = 'Rosa';
     let currentImageIndex = 1;
 
     const mainImage = document.getElementById('main-product-image');
@@ -496,9 +503,7 @@
         thumbWrapper.dataset.index = i;
         
         const thumbImg = document.createElement('img');
-        const imgName = 'thumb_' + padZero(i) + '.webp'; 
-        
-        thumbImg.src = '/assets/img/' + imgName + '?v=20260725lencolAI15';
+        thumbImg.src = galleryImages[i - 1];
         thumbImg.alt = `Miniatura ${i}`;
         thumbImg.loading = 'lazy';
         thumbImg.decoding = 'async';
@@ -517,22 +522,9 @@
         // FIX INP: Manipulação de DOM pesada movida para requestAnimationFrame
         requestAnimationFrame(() => {
           if (!options.skipImageUpdate) {
-            const imgName = padZero(currentImageIndex) + '.webp';
-            if (currentImageIndex === 1) {
-              const nextSrcset = '/assets/img/01-320.webp?v=20260725lencolAI15 320w, /assets/img/01-400.webp?v=20260725lencolAI15 400w, /assets/img/01-600.webp?v=20260725lencolAI15 600w, /assets/img/01-800.webp?v=20260725lencolAI15 800w';
-              const nextSizes = '(max-width: 480px) 100vw, 800px';
-              const nextSrc = '/assets/img/01-800.webp?v=20260725lencolAI15';
-              const nextAbsoluteSrc = new URL(nextSrc, window.location.origin).href;
-              if (mainImage.getAttribute('srcset') !== nextSrcset) mainImage.srcset = nextSrcset;
-              if (mainImage.getAttribute('sizes') !== nextSizes) mainImage.sizes = nextSizes;
-              if (mainImage.currentSrc !== nextAbsoluteSrc && mainImage.getAttribute('src') !== nextSrc) {
-                mainImage.src = nextSrc;
-              }
-            } else {
-              mainImage.removeAttribute('srcset');
-              mainImage.removeAttribute('sizes');
-              mainImage.src = '/assets/img/' + imgName + '?v=20260725lencolAI15';
-            }
+            mainImage.removeAttribute('srcset');
+            mainImage.removeAttribute('sizes');
+            mainImage.src = galleryImages[currentImageIndex - 1];
           }
           imageCounter.textContent = `${currentImageIndex}/${totalImages}`;
 

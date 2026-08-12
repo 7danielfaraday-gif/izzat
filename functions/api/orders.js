@@ -127,7 +127,7 @@ export async function onRequestPost(context) {
       address: typeof body.address === 'string' ? body.address.trim() : '',
       number: typeof body.number === 'string' ? body.number.trim() : '',
       city: typeof body.city === 'string' ? body.city.trim() : '',
-      value: typeof body.value === 'number' ? body.value : 60.70,
+      value: typeof body.value === 'number' ? body.value : 51.90,
       status: 'pending',
       created_at: new Date().toISOString(),
     };
