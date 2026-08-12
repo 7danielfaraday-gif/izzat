@@ -262,41 +262,43 @@
     };
 
     (function setupBuyNowButton() {
-        const btn = document.getElementById('buy-now') || document.querySelector('.buy-btn');
-        if (!btn) return;
+        const buttons = Array.from(document.querySelectorAll('.buy-btn'));
+        if (!buttons.length) return;
         const baseCheckoutPath = '/c/';
         window.__buyNowJsReady = true;
 
-        // Modo 100% SPA: nunca redireciona por href.
-        btn.href = 'javascript:void(0)';
+        buttons.forEach((btn) => {
+            // Modo 100% SPA: nunca redireciona por href.
+            btn.href = 'javascript:void(0)';
 
-        // MantÃ©m a URL de checkout com parÃ¢metros em data-attribute.
-        try {
-            btn.dataset.checkoutTarget = window.buildCheckoutUrl(baseCheckoutPath);
-        } catch (e) {}
+            // Mantém a URL de checkout com parâmetros em data-attribute.
+            try {
+                btn.dataset.checkoutTarget = window.buildCheckoutUrl(baseCheckoutPath);
+            } catch (e) {}
 
-        // Setup SPA Checkout instead of redirecting
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (btn.classList) btn.classList.remove('is-opening');
-            const target = btn.dataset.checkoutTarget || baseCheckoutPath;
-            if (typeof window.spaOpenCheckout === 'function') window.spaOpenCheckout(target);
+            // Setup SPA Checkout instead of redirecting
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (btn.classList) btn.classList.remove('is-opening');
+                const target = btn.dataset.checkoutTarget || baseCheckoutPath;
+                if (typeof window.spaOpenCheckout === 'function') window.spaOpenCheckout(target);
 
-            const trackAddToCart = () => {
-                try {
-                    trackViaZaraz('AddToCart', {
-                        ...PRODUCT_CONTENT,
-                        event_id: generateEventId()
-                    }, true);
-                } catch (err) {}
-            };
+                const trackAddToCart = () => {
+                    try {
+                        trackViaZaraz('AddToCart', {
+                            ...PRODUCT_CONTENT,
+                            event_id: generateEventId()
+                        }, true);
+                    } catch (err) {}
+                };
 
-            // Evita custo extra no frame do clique (sensaÃ§Ã£o de "botÃ£o travado")
-            if ('requestIdleCallback' in window) {
-                requestIdleCallback(trackAddToCart, { timeout: 1200 });
-            } else {
-                setTimeout(trackAddToCart, 0);
-            }
+                // Evita custo extra no frame do clique (sensação de "botão travado")
+                if ('requestIdleCallback' in window) {
+                    requestIdleCallback(trackAddToCart, { timeout: 1200 });
+                } else {
+                    setTimeout(trackAddToCart, 0);
+                }
+            });
         });
     })();
     // ==================================================
