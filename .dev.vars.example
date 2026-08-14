@@ -1,0 +1,4 @@
+CF_ACCESS_TEAM_DOMAIN=https://sua-equipe.cloudflareaccess.com
+CF_ACCESS_AUD=cole-aqui-o-application-audience-tag
+IZZAT_ADMIN_PASSWORD=defina-uma-senha-forte
+IZZAT_ADMIN_SESSION_SECRET=gere-uma-chave-aleatoria-com-pelo-menos-32-caracteres
